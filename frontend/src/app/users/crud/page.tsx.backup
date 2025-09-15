@@ -1,0 +1,877 @@
+"use client";
+import { useEffect, useRef, useState, useCallback } from "react";
+import Handsontable from "handsontable";
+import "handsontable/dist/handsontable.full.min.css";
+import './handsontable-grid.css';
+import { ResizableBox } from "react-resizable";
+import "react-resizable/css/styles.css";
+import { Box, Button, Typography, Paper, Stack } from "@mui/material";
+import { Edit, Save, Refresh, Brightness4, Brightness7, FormatColorFill } from "@mui/icons-material";
+
+type User = {
+  id: number;
+  email: string;
+  name?: string;
+};
+
+type Change = {
+  type: 'update' | 'delete' | 'add';
+  user: Partial<User>;
+  newData?: Partial<User>;
+  rowIndex?: number; 
+};
+
+export default function UsersCrudPage() {
+  const hotRef = useRef<HTMLDivElement>(null);
+  const hotInstanceRef = useRef<Handsontable | null>(null);
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isEditable, setIsEditable] = useState(false);
+  const [changes, setChanges] = useState<Change[]>([]);
+  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [alternatingRows, setAlternatingRows] = useState(true);
+  const [mounted, setMounted] = useState(false);
+
+  const usersRef = useRef(users);
+  useEffect(() => {
+    usersRef.current = users;
+  }, [users]);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Debug state changes
+  useEffect(() => {
+    console.log('🔄 State changed:', { isDarkMode, alternatingRows });
+  }, [isDarkMode, alternatingRows]);
+
+  const fetchUsers = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("http://localhost:4000/users");
+      if (!res.ok) throw new Error('Failed to fetch users');
+      const data = await res.json();
+      setUsers(data);
+    } catch (error) {
+      console.error(error);
+      alert((error as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
+
+  // Apply theme and alternating rows classes to Handsontable root element
+  useEffect(() => {
+    console.log('🎨 Theme useEffect triggered:', { isDarkMode, alternatingRows });
+    
+    if (hotInstanceRef.current) {
+      const hotElement = hotInstanceRef.current.rootElement;
+      console.log('🎨 Handsontable root element found:', hotElement);
+      
+      if (hotElement) {
+        // Remove existing theme classes
+        hotElement.classList.remove('ht-theme-dark', 'ht-theme-light', 'ht-alternating-rows');
+        console.log('🎨 Removed existing classes');
+        
+        // Add current theme class
+        if (isDarkMode) {
+          hotElement.classList.add('ht-theme-dark');
+          console.log('🎨 Added ht-theme-dark class');
+        } else {
+          hotElement.classList.add('ht-theme-light');
+          console.log('🎨 Added ht-theme-light class');
+        }
+        
+        // Add alternating rows class if enabled
+        if (alternatingRows) {
+          hotElement.classList.add('ht-alternating-rows');
+          console.log('🎨 Added ht-alternating-rows class');
+        } else {
+          hotElement.classList.remove('ht-alternating-rows');
+          console.log('🎨 Removed ht-alternating-rows class');
+        }
+        
+        // Fallback: directly style table cells if CSS doesn't work
+        const cells = hotElement.querySelectorAll('.htCore td, .htCore th');
+        const rows = hotElement.querySelectorAll('.htCore tbody tr');
+        
+        cells.forEach(cell => {
+          const element = cell as HTMLElement;
+          if (isDarkMode) {
+            element.style.backgroundColor = '#1e1e1e';
+            element.style.color = '#ffffff';
+            element.style.borderColor = '#404040';
+          } else {
+            element.style.backgroundColor = '#ffffff';
+            element.style.color = '#000000';
+            element.style.borderColor = '#dee2e6';
+          }
+        });
+        
+        // Apply alternating rows fallback
+        if (alternatingRows) {
+          console.log('🎨 Applying alternating rows fallback for', rows.length, 'rows');
+          rows.forEach((row, index) => {
+            const rowElement = row as HTMLElement;
+            const isEven = (index + 1) % 2 === 0; // +1 because index is 0-based
+            
+            if (isEven) {
+              const cellsInRow = rowElement.querySelectorAll('td');
+              cellsInRow.forEach(cell => {
+                const cellElement = cell as HTMLElement;
+                if (isDarkMode) {
+                  cellElement.style.backgroundColor = '#252525';
+                  console.log(`🎨 Set dark alternating row ${index} background to #252525`);
+                } else {
+                  cellElement.style.backgroundColor = '#e3f2fd'; /* Light blue for better visibility */
+                  console.log(`🎨 Set light alternating row ${index} background to #e3f2fd`);
+                }
+              });
+            } else {
+              // Ensure odd rows have the base theme color
+              const cellsInRow = rowElement.querySelectorAll('td');
+              cellsInRow.forEach(cell => {
+                const cellElement = cell as HTMLElement;
+                if (isDarkMode) {
+                  cellElement.style.backgroundColor = '#1e1e1e';
+                } else {
+                  cellElement.style.backgroundColor = '#ffffff';
+                }
+              });
+            }
+          });
+          console.log('🎨 Applied alternating rows fallback styling');
+        }
+        
+        console.log('🎨 Applied fallback styling to', cells.length, 'cells in', rows.length, 'rows');
+        
+        console.log('🎨 Final classes on Handsontable element:', hotElement.className);
+        
+        // Check if CSS is being applied
+        const computedStyle = window.getComputedStyle(hotElement.querySelector('.htCore') || hotElement);
+        console.log('🎨 Computed background color:', computedStyle.backgroundColor);
+        console.log('🎨 Computed text color:', computedStyle.color);
+        
+        // Also check the actual DOM classes
+        console.log('🎨 DOM classes on root element:', hotElement.classList);
+        const htCore = hotElement.querySelector('.htCore');
+        if (htCore) {
+          console.log('🎨 DOM classes on .htCore:', htCore.classList);
+          console.log('🎨 .htCore computed background:', window.getComputedStyle(htCore).backgroundColor);
+        }
+        
+        // Small delay to ensure alternating rows are applied after base theme
+        setTimeout(() => {
+          if (alternatingRows && hotElement) {
+            const rows = hotElement.querySelectorAll('.htCore tbody tr');
+            console.log('🎨 Applying delayed alternating rows styling to', rows.length, 'rows');
+            rows.forEach((row, index) => {
+              const isEven = (index + 1) % 2 === 0;
+              if (isEven) {
+                const cellsInRow = row.querySelectorAll('td');
+                cellsInRow.forEach(cell => {
+                  const cellElement = cell as HTMLElement;
+                  if (isDarkMode) {
+                    cellElement.style.backgroundColor = '#252525';
+                  } else {
+                    cellElement.style.backgroundColor = '#e3f2fd'; /* Light blue for better visibility */
+                  }
+                });
+                console.log(`🎨 Delayed styling applied to row ${index}`);
+              }
+            });
+            console.log('🎨 Applied delayed alternating rows styling');
+          }
+        }, 100);
+      } else {
+        console.error('🎨 Handsontable root element not found!');
+      }
+    } else {
+      console.warn('🎨 Handsontable instance not ready yet');
+    }
+  }, [isDarkMode, alternatingRows]);
+
+  const afterChange = useCallback((cellChanges: Handsontable.CellChange[] | null, source: Handsontable.ChangeSource) => {
+    console.log('afterChange called with source:', source, 'cellChanges:', cellChanges);
+    
+    // Allow changes from multiple sources to catch all paste operations
+    if (!cellChanges || source === 'loadData') {
+      console.log('Ignoring change due to loadData or no cellChanges');
+      return;
+    }
+
+    setChanges(prevChanges => {
+      const newChanges = [...prevChanges];
+
+      for (const [row, prop, oldValue, newValue] of cellChanges) {
+        if (oldValue === newValue) continue;
+
+        const hot = hotInstanceRef.current;
+        if (!hot) continue;
+
+        // For bulk paste operations, check if we're beyond the original data length
+        const originalDataLength = usersRef.current.length;
+        const isNewRow = row >= originalDataLength;
+        
+        // Also check if the row data has no ID (for spare rows)
+        const rowData = hot.getSourceDataAtRow(row) as User;
+        const isSpareRow = !rowData || !rowData.id || rowData.id === 0;
+        
+        const isAddOperation = isNewRow || isSpareRow;
+        const physicalRowIndex = hot.toPhysicalRow(row);
+
+        if (isAddOperation) {
+          const existingAddIndex = newChanges.findIndex(c => c.type === 'add' && c.rowIndex === physicalRowIndex);
+          const newUserPartial = { [String(prop)]: newValue };
+
+          if (existingAddIndex > -1) {
+            newChanges[existingAddIndex].user = { ...newChanges[existingAddIndex].user, ...newUserPartial };
+          } else {
+            newChanges.push({
+              type: 'add',
+              user: { id: 0, ...newUserPartial },
+              rowIndex: physicalRowIndex,
+            });
+          }
+        } else {
+          const user = usersRef.current[row];
+          if (!user) continue;
+
+          const existingUpdateIndex = newChanges.findIndex(c => c.type === 'update' && c.user.id === user.id);
+
+          if (existingUpdateIndex > -1) {
+            newChanges[existingUpdateIndex].newData = { ...newChanges[existingUpdateIndex].newData, [String(prop)]: newValue };
+          } else {
+            newChanges.push({ type: 'update', user, newData: { [String(prop)]: newValue } });
+          }
+        }
+      }
+      
+      console.log('Updated changes:', newChanges);
+      return newChanges;
+    });
+  }, []);
+
+  const beforeRemoveRow = useCallback((index: number, amount: number) => {
+    const usersToDelete: Change[] = [];
+    for (let i = 0; i < amount; i++) {
+      const user = usersRef.current[index + i];
+      if (user && user.id) {
+        usersToDelete.push({ type: 'delete', user });
+      }
+    }
+    if (usersToDelete.length > 0) {
+      setChanges(prev => [...prev, ...usersToDelete]);
+    }
+  }, []);
+
+
+  useEffect(() => {
+    if (mounted && hotRef.current && !hotInstanceRef.current) {
+      const hot = new Handsontable(hotRef.current, {
+        data: users,
+        colHeaders: ["ID", "Email", "Name", "Actions"],
+        columns: [
+          { data: "id", readOnly: true },
+          { data: "email" },
+          { data: "name" },
+          { 
+            data: "actions", 
+            readOnly: true,
+            renderer: function(instance, td, row, col, prop, value, cellProperties) {
+              td.innerHTML = `
+                <button class="action-btn edit-btn" data-row="${row}" data-action="edit">✏️</button>
+                <button class="action-btn delete-btn" data-row="${row}" data-action="delete">🗑️</button>
+              `;
+              
+              // Add event listeners
+              const editBtn = td.querySelector('.edit-btn');
+              const deleteBtn = td.querySelector('.delete-btn');
+              
+              if (editBtn) {
+                editBtn.addEventListener('click', () => {
+                  const rowData = instance.getSourceDataAtRow(row);
+                  console.log('Edit user:', rowData);
+                  // You can implement inline editing here
+                });
+              }
+              
+              if (deleteBtn) {
+                deleteBtn.addEventListener('click', () => {
+                  const rowData = instance.getSourceDataAtRow(row);
+                  console.log('Delete user:', rowData);
+                  // You can implement delete confirmation here
+                });
+              }
+              
+              return td;
+            }
+          }
+        ],
+        rowHeaders: true,
+        licenseKey: "non-commercial-and-evaluation",
+        
+        // Core functionality
+        afterChange,
+        beforeRemoveRow,
+        
+        // Layout and sizing
+        stretchH: 'all',
+        height: 500, // Fixed height for scrolling
+        width: '100%',
+        
+        // Column features
+        manualColumnResize: true,
+        manualColumnMove: true,
+        columnSorting: true,
+        
+        // Row features  
+        manualRowResize: true,
+        manualRowMove: true,
+        
+        // Filtering
+        filters: true,
+        dropdownMenu: true,
+        
+        // Context menu with full options
+        contextMenu: {
+          items: {
+            'row_above': {
+              name: 'Insert row above'
+            },
+            'row_below': {
+              name: 'Insert row below'  
+            },
+            'col_left': {
+              name: 'Insert column left'
+            },
+            'col_right': {
+              name: 'Insert column right'
+            },
+            'remove_row': {
+              name: 'Remove row'
+            },
+            'remove_col': {
+              name: 'Remove column'
+            },
+            'undo': {
+              name: 'Undo'
+            },
+            'redo': {
+              name: 'Redo'
+            },
+            'copy': {
+              name: 'Copy'
+            },
+            'cut': {
+              name: 'Cut'
+            },
+            'paste': {
+              name: 'Paste'
+            },
+            'sep1': '---------',
+            'alignment': {
+              name: 'Alignment',
+              submenu: {
+                items: [
+                  {
+                    key: 'alignment:left',
+                    name: 'Left'
+                  },
+                  {
+                    key: 'alignment:center', 
+                    name: 'Center'
+                  },
+                  {
+                    key: 'alignment:right',
+                    name: 'Right'
+                  }
+                ]
+              }
+            }
+          }
+        },
+        
+        // Copy/paste
+        copyPaste: true,
+        
+        // Allow adding new rows when pasting
+        minSpareRows: isEditable ? 1 : 0,
+        
+        // Search
+        search: true,
+        
+        // Auto column size
+        autoColumnSize: true,
+        autoRowSize: true,
+        
+        // Merge cells capability
+        mergeCells: true,
+        
+        // Comments
+        comments: true,
+        
+        // Custom borders
+        customBorders: true,
+        
+        // Multi-column sorting
+        multiColumnSorting: true,
+        
+        // Hidden rows/columns
+        hiddenRows: true,
+        hiddenColumns: true,
+        
+                // Nested headers support
+        nestedHeaders: [
+          ['ID', 'Email', 'Name', 'Actions']
+        ],
+        
+        // Cell selection
+        fillHandle: true,
+        
+        // Freeze panes - fix headers
+        fixedRowsTop: 0, // Let header scroll with content
+        fixedColumnsLeft: 1, // Keep ID column and row numbers fixed
+        
+        // Better scrolling behavior
+        viewportRowRenderingOffset: 10,
+        viewportColumnRenderingOffset: 10,
+      });
+      hotInstanceRef.current = hot;
+    }
+  }, [mounted]); 
+
+  useEffect(() => {
+    if (mounted && hotInstanceRef.current) {
+      hotInstanceRef.current.loadData(users);
+      hotInstanceRef.current.updateSettings({
+        columns: [
+          { data: "id", readOnly: true },
+          { data: "email", readOnly: !isEditable },
+          { data: "name", readOnly: !isEditable },
+          { 
+            data: "actions", 
+            readOnly: true,
+            renderer: function(instance, td, row, col, prop, value, cellProperties) {
+              td.innerHTML = `
+                <button class="action-btn edit-btn" data-row="${row}" data-action="edit">✏️</button>
+                <button class="action-btn delete-btn" data-row="${row}" data-action="delete">🗑️</button>
+              `;
+              
+              // Add event listeners
+              const editBtn = td.querySelector('.edit-btn');
+              const deleteBtn = td.querySelector('.delete-btn');
+              
+              if (editBtn) {
+                editBtn.addEventListener('click', () => {
+                  const rowData = instance.getSourceDataAtRow(row);
+                  console.log('Edit user:', rowData);
+                  // You can implement inline editing here
+                });
+              }
+              
+              if (deleteBtn) {
+                deleteBtn.addEventListener('click', () => {
+                  const rowData = instance.getSourceDataAtRow(row);
+                  console.log('Delete user:', rowData);
+                  // You can implement delete confirmation here
+                });
+              }
+              
+              return td;
+            }
+          }
+        ],
+        allowRemoveRow: isEditable,
+        minSpareRows: isEditable ? 1 : 0,
+      });
+    }
+  }, [mounted, users, isEditable]);
+
+
+
+  const handleDiscardChanges = () => {
+    setChanges([]);
+    fetchUsers();
+  };
+
+    const saveChanges = useCallback(async () => {
+    // 1. Consolidate 'add' changes
+    const addChanges = changes.filter(c => c.type === 'add');
+    const otherChanges = changes.filter(c => c.type !== 'add');
+    
+    const consolidatedAdds = new Map<number, Change>();
+    for (const change of addChanges) {
+        if (change.rowIndex !== undefined) {
+            const existing = consolidatedAdds.get(change.rowIndex);
+            if (existing) {
+                existing.user = { ...existing.user, ...change.user };
+            } else {
+                consolidatedAdds.set(change.rowIndex, { ...change });
+            }
+        }
+    }
+    const finalChanges = [...otherChanges, ...Array.from(consolidatedAdds.values())];
+
+    // 2. Create an array of promises for all API calls
+    const promises = finalChanges.map(change => {
+      if (change.type === 'update') {
+        if (!change.user.id) return Promise.resolve();
+        return fetch(`http://localhost:4000/users/${change.user.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...change.user, ...change.newData }),
+        });
+      } else if (change.type === 'delete') {
+        if (!change.user.id) return Promise.resolve();
+        return fetch(`http://localhost:4000/users/${change.user.id}`, {
+          method: "DELETE",
+        });
+      } else if (change.type === 'add') {
+        if (!change.user.email) {
+          console.warn("Skipping add for user without email:", change.user);
+          return Promise.resolve();
+        };
+        const dataToSend = {
+          email: change.user.email,
+          name: change.user.name || '',
+          password: 'password' // Default password
+        };
+        return fetch("http://localhost:4000/users", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(dataToSend),
+        });
+      }
+      return Promise.resolve();
+    });
+
+    try {
+      // 3. Wait for all promises to settle
+      const results = await Promise.all(promises);
+
+      // Check if any request failed
+      for (const res of results) {
+        if (res && !res.ok) {
+          const errorBody = await res.text();
+          throw new Error(`An error occurred during save: ${errorBody}`);
+        }
+      }
+
+      // 4. All successful, now reset state and refetch
+      setChanges([]);
+      fetchUsers();
+    } catch (error) {
+      alert('Save failed: ' + (error as Error).message);
+    }
+  }, [changes, fetchUsers]);
+
+  // Add keyboard shortcut for Ctrl+S to save changes
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key === 's') {
+        event.preventDefault(); // Prevent browser's default save behavior
+        saveChanges();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [saveChanges]);
+
+  if (!mounted) {
+    return (
+      <Box sx={{ padding: 4 }}>
+        <Typography variant="h4" gutterBottom>
+          User Management
+        </Typography>
+        <Paper elevation={3} sx={{ padding: 2, marginBottom: 2 }}>
+          <Stack direction="row" spacing={2} alignItems="center">
+            <Button
+              variant="contained"
+              startIcon={<Edit />}
+            >
+              Enable Edit
+            </Button>
+            <Button
+              variant="contained"
+              color="primary"
+              startIcon={<Save />}
+              disabled
+            >
+              Save Changes (0)
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={<Refresh />}
+            >
+              Refresh
+            </Button>
+
+            {/* Customization buttons */}
+            <Box sx={{ borderLeft: 1, borderColor: 'divider', pl: 2, ml: 2 }}>
+              <Stack direction="row" spacing={1}>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  startIcon={<Brightness4 />}
+                  title="Toggle Dark/Light Mode"
+                >
+                  Dark
+                </Button>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  startIcon={<FormatColorFill />}
+                  title="Toggle Alternating Row Colors"
+                >
+                  Stripes
+                </Button>
+              </Stack>
+            </Box>
+          </Stack>
+        </Paper>
+        <Paper elevation={3} sx={{ padding: 2, height: '400px', overflow: 'visible' }}>
+          <Typography>Loading...</Typography>
+        </Paper>
+      </Box>
+    );
+  }
+
+  return (
+    <Box sx={{ padding: 4 }}>
+      <Typography variant="h4" gutterBottom>
+        User Management
+      </Typography>
+      <Paper elevation={3} sx={{ padding: 2, marginBottom: 2 }}>
+        <Stack direction="row" spacing={2} alignItems="center">
+          <Button
+            variant="contained"
+            startIcon={<Edit />}
+            onClick={() => setIsEditable(!isEditable)}
+          >
+            {isEditable ? 'Disable Edit' : 'Enable Edit'}
+          </Button>
+          <Button
+            variant="contained"
+            color="primary"
+            startIcon={<Save />}
+            onClick={saveChanges}
+            disabled={false}
+          >
+            Save Changes ({changes.length})
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<Refresh />}
+            onClick={fetchUsers}
+          >
+            Refresh
+          </Button>
+          
+          {/* Customization buttons */}
+          <Box sx={{ borderLeft: 1, borderColor: 'divider', pl: 2, ml: 2 }}>
+            <Stack direction="row" spacing={1}>
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={isDarkMode ? <Brightness7 /> : <Brightness4 />}
+                onClick={() => {
+                  console.log('🌙 Dark mode toggle clicked. Current:', isDarkMode, 'New:', !isDarkMode);
+                  setIsDarkMode(!isDarkMode);
+                }}
+                title="Toggle Dark/Light Mode"
+              >
+                {isDarkMode ? 'Light' : 'Dark'}
+              </Button>
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<FormatColorFill />}
+                onClick={() => {
+                  console.log('🎨 Alternating rows toggle clicked. Current:', alternatingRows, 'New:', !alternatingRows);
+                  setAlternatingRows(!alternatingRows);
+                }}
+                title="Toggle Alternating Row Colors"
+              >
+                {alternatingRows ? 'Stripes' : 'Plain'}
+              </Button>
+            </Stack>
+          </Box>
+        </Stack>
+      </Paper>
+      <style jsx>{`
+        /* Import Ubuntu font */
+        @import url('https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;500;700&display=swap');
+        
+        /* Global font for Handsontable */
+        .handsontable-container * {
+          font-family: 'Ubuntu', sans-serif !important;
+        }
+        
+        .action-btn {
+          background: none;
+          border: none;
+          cursor: pointer;
+          padding: 4px 8px;
+          margin: 0 2px;
+          border-radius: 4px;
+          font-size: 14px;
+          transition: background-color 0.2s;
+        }
+        .action-btn:hover {
+          background-color: #f5f5f5;
+        }
+        .edit-btn:hover {
+          background-color: #e3f2fd;
+        }
+        .delete-btn:hover {
+          background-color: #ffebee;
+        }
+        
+        /* Enhanced header styling */
+        .htCore thead th {
+          font-weight: 700 !important;
+          font-size: 16px !important;
+          padding: 12px 8px !important;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+          color: white !important;
+          border: 2px solid #ddd !important;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+        
+        /* Row header (line numbers) styling */
+        .htCore .htRowHeader {
+          font-weight: 600 !important;
+          font-size: 14px !important;
+          background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%) !important;
+          color: white !important;
+          border: 2px solid #ddd !important;
+          text-align: center !important;
+          min-width: 50px !important;
+        }
+        
+        /* Corner cell styling */
+        .htCore .htCorner {
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+          border: 2px solid #ddd !important;
+        }
+        
+        /* Container styling for themes */
+        .handsontable-container {
+          border-radius: 8px;
+          max-width: 100%;
+          font-family: 'Ubuntu', sans-serif !important;
+          box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+        
+        /* Ensure Handsontable respects container bounds */
+        .handsontable-container .htCore {
+          min-width: 100%;
+          font-family: 'Ubuntu', sans-serif !important;
+        }
+        
+        /* Data cells styling */
+        .htCore tbody td {
+          font-size: 14px !important;
+          padding: 8px !important;
+          border: 1px solid #e0e0e0 !important;
+        }
+        .ht-theme-dark .htCore {
+          background-color: #1e1e1e !important;
+          color: #ffffff !important;
+        }
+        .ht-theme-dark .htCore th {
+          background-color: #2d2d2d !important;
+          color: #ffffff !important;
+          border-color: #404040 !important;
+        }
+        .ht-theme-dark .htCore td {
+          background-color: #1e1e1e !important;
+          color: #ffffff !important;
+          border-color: #404040 !important;
+        }
+        .ht-theme-dark .htCore tbody tr:hover td {
+          background-color: #333333 !important;
+        }
+        
+        /* Light theme - target Handsontable root element */
+        .ht-theme-light .htCore {
+          background-color: #ffffff !important;
+          color: #000000 !important;
+        }
+        .ht-theme-light .htCore th {
+          background-color: #f8f9fa !important;
+          color: #000000 !important;
+          border-color: #dee2e6 !important;
+        }
+        .ht-theme-light .htCore td {
+          background-color: #ffffff !important;
+          color: #000000 !important;
+          border-color: #dee2e6 !important;
+        }
+        .ht-theme-light .htCore tbody tr:hover td {
+          background-color: #f8f9fa !important;
+        }
+        
+        /* Alternating rows - works with both themes */
+        /* Light mode alternating rows - highest specificity */
+        .ht-theme-light.ht-alternating-rows .htCore tbody tr:nth-child(even) td,
+        .handsontable-container.ht-theme-light.ht-alternating-rows .htCore tbody tr:nth-child(even) td {
+          background-color: #e3f2fd !important; /* Light blue for better visibility */
+        }
+        
+        /* Dark mode alternating rows */
+        .ht-theme-dark.ht-alternating-rows .htCore tbody tr:nth-child(even) td,
+        .handsontable-container.ht-theme-dark.ht-alternating-rows .htCore tbody tr:nth-child(even) td {
+          background-color: #252525 !important;
+        }
+        
+        /* Fallback for alternating rows without theme class */
+        .ht-alternating-rows .htCore tbody tr:nth-child(even) td {
+          background-color: #e3f2fd !important; /* Light blue fallback */
+        }
+        }
+        
+        /* Even more specific - target the actual table rows */
+        .ht-alternating-rows .htCore tbody tr:nth-child(even),
+        .ht-alternating-rows.ht-theme-light .htCore tbody tr:nth-child(even) {
+          background-color: #f8f9fa !important;
+        }
+        .ht-theme-dark.ht-alternating-rows .htCore tbody tr:nth-child(even) {
+          background-color: #252525 !important;
+        }
+        .ht-theme-dark.ht-alternating-rows .htCore tbody tr:nth-child(even) td {
+          background-color: #252525 !important;
+        }
+        
+        /* Ensure proper specificity */
+        .handsontable-container .ht-theme-dark .htCore,
+        .ht-theme-dark .htCore {
+          background-color: #1e1e1e !important;
+          color: #ffffff !important;
+        }
+        .handsontable-container .ht-theme-light .htCore,
+        .ht-theme-light .htCore {
+          background-color: #ffffff !important;
+          color: #000000 !important;
+        }
+      `}</style>
+      <ResizableBox width={800} height={400} minConstraints={[400, 200]} maxConstraints={[1200, 800]}>
+        <Paper elevation={3} sx={{ padding: 2, height: '100%', overflow: 'visible' }}>
+          {loading && <Typography>Loading...</Typography>}
+          <div ref={hotRef} className={`handsontable-container ${isDarkMode ? 'ht-theme-dark' : 'ht-theme-light'} ${alternatingRows ? 'ht-alternating-rows' : ''}`} />
+        </Paper>
+      </ResizableBox>
+    </Box>
+  );
+}

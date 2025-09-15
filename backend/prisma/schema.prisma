@@ -1,0 +1,249 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id    Int     @id @default(autoincrement())
+
+  email String?
+  GSM String?
+  mdp String
+  sel String?
+
+  admin Boolean?  @default(false)
+
+  actif Boolean? @default(true)
+  mdpTemporaire Boolean? @default(true)
+
+  titre String?
+  fonction String?
+  nom  String?
+  prenom String?
+  niveau Int? @default(0) 
+
+  revenuQ1 Float? @default(0)
+  revenuQ2 Float?  @default(0)
+
+  entreeFonction DateTime? @default(now())
+  
+  // Relations
+  classesEnseignees Classe[]
+  presentSeances     Seance[] @relation("SeancePresentTeacher")
+
+  // Permanence slots assigned to this user
+  permanenceSlots    PermanenceSlot[]
+}
+
+model Eleve {
+  id                              Int      @id @default(autoincrement())
+  nom                             String
+  prenom                          String
+  dateNaissance                   DateTime
+  idLogiscool                     String?
+  mdpLogiscool                    String?
+  contingent                      String?
+  nomCompletParent                String?
+  nomCompletResponsable1          String?
+  relationResponsable1            String?
+  gsmResponsable1                 String?
+  mailResponsable1                String?
+  nomCompletResponsable2          String?
+  relationResponsable2            String?
+  gsmResponsable2                 String?
+  mailResponsable2                String?
+  nomCompletResponsable3          String?
+  relationResponsable3            String?
+  gsmResponsable3                 String?
+  mailResponsable3                String?
+  retourSeul                      Boolean?
+  recuperePar                     String?
+  periodeInscription              String?
+  nombreVersements                Int?
+  boursier                        Boolean?
+  cpas                            Boolean?
+  membreClubCIB                   Boolean?
+  nomPartenaire                   String?
+  montantBrutQ1                   Float?
+  reduction                       Float?
+  bourses2024Q1                   Float?
+  montantDu                       Float?
+  montantFinal                    Float?
+  montantPaye                     Float?
+  datePayment                     DateTime?
+  periodePayment                  String?
+  montantBrutQ2                   Float?
+  reductionQ2                     Float?
+  boursesQ2                       Float?
+  montantFinalQ2                  Float?
+  montantPayeQ2                   Float?
+  datePaymentQ2                   DateTime?
+  periodePaymentQ2                String?
+  abandon                         Boolean?
+  dateAbandon                     DateTime?
+  remarques                       String?
+  nomResponsableFiscal            String?
+  prenomResponsableFiscal         String?
+  numRegNatResponsableFiscal      String?
+  numRegNationalEleve             String?
+  dateNaissanceResponsableFiscal  DateTime?
+  adresseResponsableFiscal        String?
+  codePostalResponsableFiscal     String?
+  localiteResponsableFiscal       String?
+  paysResponsableFiscal           String?
+  adresseEleve                    String?
+  codePostalEleve                 String?
+  localiteEleve                   String?
+  paysEleve                       String?
+  rrRestantes                     Float?
+  
+  // Relations
+  classeInscriptions             ClasseEleve[]
+  presences                      Presence[]
+  replacementRequests            ReplacementRequest[]
+}
+
+model Classe {
+  id                Int      @id @default(autoincrement())
+  nom               String
+  description       String?
+  level             String?
+  typeCours         String?
+  location          String?
+  salle             String?
+  teacherId         Int
+  dureeSeance       Int      // Duration in minutes
+  semainesSeances   String   // JSON array of week numbers
+  jourSemaine       Int?     // Default day of week (0=Sunday, 1=Monday, etc.)
+  heureDebut        String?  // Default start time (HH:MM format)
+  rrPossibles       Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  // Relations
+  teacher           User     @relation(fields: [teacherId], references: [id])
+  eleves            ClasseEleve[]
+  seances           Seance[]
+}
+
+model ClasseEleve {
+  id        Int @id @default(autoincrement())
+  classeId  Int
+  eleveId   Int
+  
+  // Relations
+  classe    Classe @relation(fields: [classeId], references: [id], onDelete: Cascade)
+  eleve     Eleve  @relation(fields: [eleveId], references: [id], onDelete: Cascade)
+  
+  @@unique([classeId, eleveId])
+}
+
+model Seance {
+  id          Int      @id @default(autoincrement())
+  classeId    Int
+  dateHeure   DateTime
+  duree       Int      // Duration in minutes
+  statut      String   @default("programmee") // programmee, terminee, annulee
+  notes       String?
+  rrPossibles Boolean  @default(false)
+  weekNumber  Int?
+  presentTeacherId Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  classe      Classe   @relation(fields: [classeId], references: [id], onDelete: Cascade)
+  presentTeacher User? @relation("SeancePresentTeacher", fields: [presentTeacherId], references: [id])
+  presences   Presence[]
+  originRRs   ReplacementRequest[] @relation("OriginRRs")
+  destinationRRs ReplacementRequest[] @relation("DestinationRRs")
+}
+
+model Presence {
+  id          Int      @id @default(autoincrement())
+  seanceId    Int
+  eleveId     Int
+  statut      String   @default("no_status") // present, absent, no_status, awaiting
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  seance      Seance   @relation(fields: [seanceId], references: [id], onDelete: Cascade)
+  eleve       Eleve    @relation(fields: [eleveId], references: [id], onDelete: Cascade)
+  
+  @@unique([seanceId, eleveId])
+}
+
+model Setting {
+  id          Int      @id @default(autoincrement())
+  category    String   // level, typeCours, location, salle
+  value       String
+  label       String?  // Display label for the value
+  description String?
+  order       Int?     // Optional ordering for display
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@unique([category, value])
+  @@index([category, active])
+}
+
+// Enum for permanence periods
+enum Period {
+  AM
+  PM
+}
+
+// Weekly permanence schedule: fixed week (Mon-Sun) with AM/PM slots
+model PermanenceSlot {
+  id         Int      @id @default(autoincrement())
+  dayOfWeek  Int      // 0 = Sunday, 1 = Monday, ... 6 = Saturday
+  period     Period
+  userId     Int?
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  user       User?    @relation(fields: [userId], references: [id])
+
+  @@unique([dayOfWeek, period], name: "dayOfWeek_period")
+  @@index([userId])
+}
+
+// Selected days when attendance should be done (admin-configurable calendar)
+model AttendanceDay {
+  id        Int      @id @default(autoincrement())
+  date      DateTime @unique
+  year      Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([year])
+}
+
+// Replacement Request (RR): an Eleve moves from an origin seance to a destination seance
+model ReplacementRequest {
+  id                   Int       @id @default(autoincrement())
+  eleveId              Int
+  originSeanceId       Int
+  destinationSeanceId  Int
+  status               String    @default("open") // open, completed, cancelled
+  destStatut           String    @default("no_status") // present, absent, no_status
+  notes                String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  // Relations
+  eleve               Eleve     @relation(fields: [eleveId], references: [id], onDelete: Cascade)
+  originSeance        Seance    @relation("OriginRRs", fields: [originSeanceId], references: [id], onDelete: Cascade)
+  destinationSeance   Seance    @relation("DestinationRRs", fields: [destinationSeanceId], references: [id], onDelete: Cascade)
+
+  @@unique([eleveId, originSeanceId], name: "unique_rr_per_origin")
+}

@@ -1,0 +1,178 @@
+/* Handsontable Grid Styles - Using Default Handsontable Styling */
+
+/* Import default Handsontable styles */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap');
+
+/* Base container with minimal overrides */
+.handsontable-container {
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  height: 100% !important;
+  width: 100% !important;
+  margin: 0;
+  padding: 0;
+  overflow: visible;
+}
+
+/* Ensure table takes full width and shows all columns */
+.handsontable-container .htCore {
+  width: auto !important;
+  min-width: 100% !important;
+  table-layout: auto !important;
+  display: block !important;
+}
+
+.handsontable-container .htCore thead,
+.handsontable-container .htCore tbody {
+  display: block !important;
+  width: 100% !important;
+}
+
+.handsontable-container .htCore thead th,
+.handsontable-container .htCore tbody td {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: inline-block !important;
+}
+
+/* Force table to show horizontal scrollbar if needed */
+.handsontable-container .wtHolder {
+  overflow: auto !important;
+  max-height: 100% !important;
+  width: 100% !important;
+}
+
+/* Basic action button styling */
+.action-btn {
+  background: transparent;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 4px 8px;
+  margin: 1px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.action-btn:hover {
+  background: #f5f5f5;
+}
+
+/* Dark theme support */
+.ht-theme-dark .action-btn {
+  border-color: #555;
+  color: #fff;
+}
+
+.ht-theme-dark .action-btn:hover {
+  background: #333;
+}
+
+/* Comprehensive Dark Theme Styles */
+.ht-theme-dark .htCore {
+  background-color: #1e1e1e !important;
+  color: #ffffff !important;
+  border-color: #333 !important;
+}
+
+.ht-theme-dark .htCore thead th {
+  background-color: #2d2d2d !important;
+  color: #ffffff !important;
+  border-color: #444 !important;
+}
+
+.ht-theme-dark .htCore tbody td {
+  background-color: #1e1e1e !important;
+  color: #ffffff !important;
+  border-color: #333 !important;
+}
+
+.ht-theme-dark .htCore tbody tr:hover td {
+  background-color: #2a2a2a !important;
+}
+
+.ht-theme-dark .htCore .currentRow td,
+.ht-theme-dark .htCore .currentCol td {
+  background-color: #333 !important;
+}
+
+.ht-theme-dark .htCore .htAutocompleteArrow {
+  color: #ffffff !important;
+}
+
+.ht-theme-dark .htCore .htCheckboxRendererInput {
+  background-color: #1e1e1e !important;
+  border-color: #555 !important;
+}
+
+.ht-theme-dark .htCore .htCheckboxRendererInput:checked {
+  background-color: #4caf50 !important;
+}
+
+.ht-theme-dark .htCore .htSelectEditor {
+  background-color: #2d2d2d !important;
+  color: #ffffff !important;
+  border-color: #555 !important;
+}
+
+.ht-theme-dark .htCore .htSelectEditor option {
+  background-color: #2d2d2d !important;
+  color: #ffffff !important;
+}
+
+/* Dropdown menu dark theme */
+.ht-theme-dark .htDropdownMenu {
+  background-color: #2d2d2d !important;
+  border-color: #444 !important;
+}
+
+.ht-theme-dark .htDropdownMenu .htDropdownMenuItem {
+  color: #ffffff !important;
+}
+
+.ht-theme-dark .htDropdownMenu .htDropdownMenuItem:hover {
+  background-color: #333 !important;
+}
+
+/* Filter input dark theme */
+.ht-theme-dark .htFiltersMenuInput {
+  background-color: #2d2d2d !important;
+  color: #ffffff !important;
+  border-color: #555 !important;
+}
+
+.ht-theme-dark .htFiltersMenuLabel {
+  color: #ffffff !important;
+}
+
+/* Context menu dark theme */
+.ht-theme-dark .htContextMenu {
+  background-color: #2d2d2d !important;
+  border-color: #444 !important;
+}
+
+.ht-theme-dark .htContextMenu .htContextMenuItem {
+  color: #ffffff !important;
+}
+
+.ht-theme-dark .htContextMenu .htContextMenuItem:hover {
+  background-color: #333 !important;
+}
+
+/* Light theme support */
+.ht-theme-light .action-btn {
+  border-color: #ddd;
+  color: #000;
+}
+
+.ht-theme-light .action-btn:hover {
+  background: #f5f5f5;
+}
+
+/* Alternating rows support */
+.ht-alternating-rows .htCore tbody tr:nth-child(even) td {
+  background-color: #f9f9f9 !important;
+}
+
+.ht-theme-dark.ht-alternating-rows .htCore tbody tr:nth-child(even) td {
+  background-color: #2a2a2a !important;
+}

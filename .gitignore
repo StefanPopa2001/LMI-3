@@ -1,0 +1,55 @@
+# Root ignore consolidating frontend & backend
+
+# Dependencies
+node_modules/
+.pnp
+.pnp.*
+yarn.lock
+
+# Yarn Berry structure
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# Build artifacts
+frontend/.next/
+frontend/out/
+frontend/build/
+backend/build/
+dist/
+
+# Coverage
+coverage/
+
+# OS / misc
+.DS_Store
+*.pem
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# TypeScript
+*.tsbuildinfo
+frontend/next-env.d.ts
+
+# Env files (uncomment to ignore all env)
+# .env
+# *.env
+
+# Local services data
+docker-data/
+
+# Prisma generated engines (keep schema & JS)
+backend/generated/prisma/libquery_engine-*.so.node
+
+# Vercel
+.vercel
+
+# IDE
+.vscode/
+/.idea/
