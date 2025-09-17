@@ -45,6 +45,8 @@ import {
   ViewWeek,
   ViewDay,
   ViewModule,
+  Autorenew,
+  AddCircleOutline,
   Home
 } from '@mui/icons-material';
 import {
@@ -91,6 +93,7 @@ const AttendanceView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [updatingPresenceIds, setUpdatingPresenceIds] = useState<Set<number>>(new Set());
   const [isAttendanceDialogOpen, setIsAttendanceDialogOpen] = useState(false);
   const [isRRModalOpen, setIsRRModalOpen] = useState(false);
   const [rrDefaults, setRrDefaults] = useState<{ originSeanceId?: number; eleveId?: number } >({});
@@ -104,6 +107,7 @@ const AttendanceView: React.FC = () => {
   const [locationSettings, setLocationSettings] = useState<Setting[]>([]);
   const [salleSettings, setSalleSettings] = useState<Setting[]>([]);
   const [availableHours, setAvailableHours] = useState<string[]>([]);
+  const [availableWeekNumbers, setAvailableWeekNumbers] = useState<number[]>([]);
   const [isFilterExpanded, setIsFilterExpanded] = useState(false);
   const [filterTeacher, setFilterTeacher] = useState<string>('');
   const [filterLocation, setFilterLocation] = useState<string>('');
@@ -113,6 +117,7 @@ const AttendanceView: React.FC = () => {
   const [filterStudent, setFilterStudent] = useState<string>('');
   const [filterJourSemaine, setFilterJourSemaine] = useState<string>('');
   const [filterHeureDebut, setFilterHeureDebut] = useState<string>('');
+  const [filterWeekNumber, setFilterWeekNumber] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState('');
 
   // View states
@@ -162,8 +167,19 @@ const AttendanceView: React.FC = () => {
     try {
       const startDateString = currentWeekStart.toISOString().split('T')[0];
       const weeklySeances = await attendanceService.getWeeklySeances(startDateString);
-      setSeances(weeklySeances);
-      extractAvailableHours(weeklySeances);
+      // Enrich with rrMap details (fetch in parallel, swallow errors per seance)
+      const detailed = await Promise.all(
+        weeklySeances.map(async s => {
+          try {
+            const full = await attendanceService.getSeanceAttendance(s.id);
+            return { ...s, rrMap: full.rrMap } as typeof s;
+          } catch {
+            return s; // fallback to basic seance
+          }
+        })
+      );
+      setSeances(detailed);
+      extractAvailableHours(detailed);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur lors du chargement des séances');
     } finally {
@@ -174,25 +190,34 @@ const AttendanceView: React.FC = () => {
   const loadAllSeances = async () => {
     setLoading(true);
     try {
-      // For grid view, load all seances from beginning of current year to end of next year
       const currentYear = new Date().getFullYear();
-      const startDate = new Date(currentYear, 0, 1); // January 1st of current year
-      const endDate = new Date(currentYear + 1, 11, 31); // December 31st of next year
-      
-      const promises = [];
+      const startDate = new Date(currentYear, 0, 1);
+      const endDate = new Date(currentYear + 1, 11, 31);
+      const promises: Promise<SeanceWithAttendance[]>[] = [];
       const currentDate = new Date(startDate);
-      
-      // Load seances week by week from start to end date
       while (currentDate <= endDate) {
         const startDateString = currentDate.toISOString().split('T')[0];
         promises.push(attendanceService.getWeeklySeances(startDateString));
-        currentDate.setDate(currentDate.getDate() + 7); // Move to next week
+        currentDate.setDate(currentDate.getDate() + 7);
       }
-      
       const allWeeksSeances = await Promise.all(promises);
       const flatSeances = allWeeksSeances.flat();
-      setAllSeances(flatSeances);
-      extractAvailableHours(flatSeances);
+      // Enrich only currently visible (performance: limit to first 200) to avoid huge burst of requests
+      const toEnrich = flatSeances.slice(0, 200);
+      const enrichedSubset = await Promise.all(
+        toEnrich.map(async s => {
+          try {
+            const full = await attendanceService.getSeanceAttendance(s.id);
+            return { ...s, rrMap: full.rrMap } as typeof s;
+          } catch {
+            return s;
+          }
+        })
+      );
+      const enrichedMap = new Map(enrichedSubset.map(s => [s.id, s]));
+      const merged = flatSeances.map(s => enrichedMap.get(s.id) || s);
+      setAllSeances(merged);
+      extractAvailableHours(merged);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur lors du chargement des séances');
     } finally {
@@ -202,11 +227,14 @@ const AttendanceView: React.FC = () => {
 
   const extractAvailableHours = (seancesList: SeanceWithAttendance[]) => {
     const hours = new Set<string>();
+    const weekNums = new Set<number>();
     seancesList.forEach(seance => {
       const time = attendanceService.formatTime(seance.dateHeure);
       hours.add(time);
+      weekNums.add(seance.weekNumber ?? getWeekNumber(new Date(seance.dateHeure)));
     });
     setAvailableHours(Array.from(hours).sort());
+    setAvailableWeekNumbers(Array.from(weekNums).sort((a,b)=>a-b));
   };
 
   const loadData = async () => {
@@ -256,6 +284,31 @@ const AttendanceView: React.FC = () => {
     setIsRRModalOpen(true);
   };
 
+  // Refresh helpers after RR changes
+  const refreshAfterRRChange = async () => {
+    // Decide which loader based on view mode
+    if (viewMode === 'grid') {
+      await loadAllSeances();
+    } else {
+      await loadWeeklySeances();
+    }
+    // If a seance dialog is open, refresh its details
+    if (selectedSeance) {
+      try {
+        const fresh = await attendanceService.getSeanceAttendance(selectedSeance.id);
+        setSelectedSeance(fresh as any);
+      } catch { /* ignore */ }
+    }
+  };
+
+  const handleRRCreated = async () => {
+    await refreshAfterRRChange();
+  };
+
+  const handleRRDeleted = async (_info: { id: number }) => {
+    await refreshAfterRRChange();
+  };
+
   // Open RR from day/grid cards: fetch rrMap for the seance, open existing RR in read-only if found, else open prefilled
   const openRRFromCard = async (seanceId: number, eleveId: number) => {
     try {
@@ -271,31 +324,54 @@ const AttendanceView: React.FC = () => {
     }
   };
 
-  const updateAttendance = async (presenceId: number, statut: string, notes?: string) => {
+  const updateAttendance = async (presenceId: number, statut: 'present' | 'absent' | 'no_status' | 'awaiting', notes?: string) => {
+    // Optimistic update: patch local state first
+    setUpdatingPresenceIds(prev => new Set(prev).add(presenceId));
+    const revertPayload: { seanceBackup?: SeanceWithAttendance; selectedBackup?: SeanceWithAttendance | null } = {};
     try {
+      // Update selectedSeance optimistically
+      if (selectedSeance) {
+        revertPayload.selectedBackup = selectedSeance;
+  const patchedPresences = selectedSeance.presences.map(p => p.id === presenceId ? { ...p, statut: statut as typeof p.statut, notes: notes ?? p.notes } : p);
+        setSelectedSeance({ ...selectedSeance, presences: patchedPresences });
+      }
+      // Update seances & allSeances optimistically
+      const patchSeanceArray = (arr: SeanceWithAttendance[], setFn: React.Dispatch<React.SetStateAction<SeanceWithAttendance[]>>) => {
+        setFn(prev => prev.map(s => {
+          const foundPresence = s.presences?.some(p => p.id === presenceId);
+            if (!foundPresence) return s;
+            const backup = revertPayload.seanceBackup ?? s; // capture first time
+            if (!revertPayload.seanceBackup) revertPayload.seanceBackup = backup;
+            return { ...s, presences: s.presences.map(p => p.id === presenceId ? { ...p, statut: statut as typeof p.statut, notes: notes ?? p.notes } : p) };
+        }));
+      };
+      patchSeanceArray(seances, setSeances);
+      patchSeanceArray(allSeances, setAllSeances);
+
       await attendanceService.updateAttendance(presenceId, statut, notes);
       setSuccess('Présence mise à jour');
-      
-      // Reload the seance data
-      if (selectedSeance) {
-        const updatedSeance = await attendanceService.getSeanceAttendance(selectedSeance.id);
-        setSelectedSeance(updatedSeance);
-        
-        // Update the seances list
-        setSeances(prev => prev.map(s => 
-          s.id === updatedSeance.id ? updatedSeance : s
-        ));
-      }
-      
-      // Refresh all seances for grid view
-      if (viewMode === 'grid') {
-        loadAllSeances();
-      } else {
-        // Refresh current week seances
-        loadWeeklySeances();
+
+      // Optionally refresh just the affected seance in background to sync rrMap / stats
+      const affectedSeanceId = selectedSeance?.id || seances.find(s => s.presences.some(p => p.id === presenceId))?.id;
+      if (affectedSeanceId) {
+        attendanceService.getSeanceAttendance(affectedSeanceId).then(fresh => {
+          setSeances(prev => prev.map(s => s.id === fresh.id ? fresh : s));
+          setAllSeances(prev => prev.map(s => s.id === fresh.id ? fresh : s));
+          if (selectedSeance?.id === fresh.id) setSelectedSeance(fresh);
+        }).catch(() => {/* silent */});
       }
     } catch (err) {
+      // Revert optimistic changes if failure
+      if (revertPayload.seanceBackup) {
+        setSeances(prev => prev.map(s => s.id === revertPayload.seanceBackup!.id ? revertPayload.seanceBackup! : s));
+        setAllSeances(prev => prev.map(s => s.id === revertPayload.seanceBackup!.id ? revertPayload.seanceBackup! : s));
+      }
+      if (revertPayload.selectedBackup) {
+        setSelectedSeance(revertPayload.selectedBackup);
+      }
       setError(err instanceof Error ? err.message : 'Erreur lors de la mise à jour');
+    } finally {
+      setUpdatingPresenceIds(prev => { const n = new Set(prev); n.delete(presenceId); return n; });
     }
   };
 
@@ -337,6 +413,7 @@ const AttendanceView: React.FC = () => {
     setFilterStudent('');
     setFilterJourSemaine('');
     setFilterHeureDebut('');
+    setFilterWeekNumber('');
     setSearchTerm('');
   };
 
@@ -356,9 +433,11 @@ const AttendanceView: React.FC = () => {
     
     const matchesHeureDebut = filterHeureDebut === '' || 
       attendanceService.formatTime(seance.dateHeure) === filterHeureDebut;
+    const matchesWeekNumber = filterWeekNumber === '' ||
+      (seance.weekNumber ?? getWeekNumber(new Date(seance.dateHeure))).toString() === filterWeekNumber;
     
     return matchesSearch && matchesTeacher && matchesStudent && matchesJourSemaine && 
-           matchesHeureDebut;
+           matchesHeureDebut && matchesWeekNumber;
   });
 
   if (loading) {
@@ -717,6 +796,29 @@ const AttendanceView: React.FC = () => {
                   {availableHours.map(time => (
                     <MenuItem key={time} value={time}>
                       {time}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <FormControl fullWidth size="small">
+                <InputLabel sx={{ color: 'var(--color-text-secondary)' }}>Semaine</InputLabel>
+                <Select
+                  value={filterWeekNumber}
+                  onChange={(e) => setFilterWeekNumber(e.target.value)}
+                  sx={{
+                    bgcolor: 'var(--color-bg-primary)',
+                    color: 'var(--color-text-primary)',
+                    '& .MuiOutlinedInput-notchedOutline': { borderColor: 'var(--color-border-light)' },
+                    '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: 'var(--color-primary-500)' },
+                    '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: 'var(--color-primary-500)' }
+                  }}
+                >
+                  <MenuItem value="">
+                    <em>Toutes</em>
+                  </MenuItem>
+                  {availableWeekNumbers.map(wn => (
+                    <MenuItem key={wn} value={wn.toString()}>
+                      Semaine {wn}
                     </MenuItem>
                   ))}
                 </Select>
@@ -1110,21 +1212,29 @@ const AttendanceView: React.FC = () => {
                               </Box>
                               
                               <Box sx={{ mb: 2 }}>
-                                <Typography variant="body2" sx={{ 
-                                  color: 'var(--color-text-secondary)',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: 1,
-                                  mb: 0.5
-                                }}>
-                                  <CalendarToday sx={{ fontSize: '1rem' }} />
-                                  {seanceDate.toLocaleDateString('fr-FR', { 
-                                    weekday: 'short',
-                                    day: 'numeric', 
-                                    month: 'short',
-                                    year: 'numeric'
-                                  })}
-                                </Typography>
+                                <Box>
+                                  <Typography variant="body2" sx={{ 
+                                    color: 'var(--color-text-secondary)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 1
+                                  }}>
+                                    <CalendarToday sx={{ fontSize: '1rem' }} />
+                                    {seanceDate.toLocaleDateString('fr-FR', { 
+                                      weekday: 'short',
+                                      day: 'numeric', 
+                                      month: 'short',
+                                      year: 'numeric'
+                                    })}
+                                  </Typography>
+                                  <Typography variant="body2" sx={{
+                                    color: 'var(--color-primary-400)',
+                                    fontWeight: 600,
+                                    mt: 0.25
+                                  }}>
+                                    Semaine {seance.weekNumber ?? getWeekNumber(new Date(seance.dateHeure))}
+                                  </Typography>
+                                </Box>
                                 
                                 <Typography variant="body2" sx={{ 
                                   color: 'var(--color-text-secondary)',
@@ -1150,45 +1260,80 @@ const AttendanceView: React.FC = () => {
                               
                               {/* Students List with Status Buttons */}
                               <Box sx={{ mt: 2 }}>
-                                <Typography variant="caption" sx={{ 
-                                  color: 'var(--color-text-secondary)',
-                                  fontWeight: 'bold',
-                                  mb: 1,
-                                  display: 'block'
-                                }}>
-                                  Élèves ({seance.classe.eleves.length})
-                                </Typography>
+                                {(() => {
+                                  const destRRExtraIds = (seance.rrMap?.destination || [])
+                                    .map(r => r.eleveId)
+                                    .filter(id => !seance.classe.eleves.some(e => e.eleve.id === id));
+                                  const extraPresences = seance.presences.filter(p => destRRExtraIds.includes(p.eleveId));
+                                  const extraAsEleves = extraPresences.map(p => ({ eleve: p.eleve }));
+                                  const combined = [...seance.classe.eleves, ...extraAsEleves];
+                                  return (
+                                    <Typography variant="caption" sx={{ 
+                                      color: 'var(--color-text-secondary)',
+                                      fontWeight: 'bold',
+                                      mb: 1,
+                                      display: 'block'
+                                    }}>
+                                      Élèves ({combined.length})
+                                    </Typography>
+                                  );
+                                })()}
                                 
                                 <Box sx={{ maxHeight: '200px', overflowY: 'auto' }}>
-                                  {seance.classe.eleves.map(eleveInClasse => {
-                                    // Find the presence record for this student
+                                  {(() => {
+                                    const destRRExtraIds = (seance.rrMap?.destination || [])
+                                      .map(r => r.eleveId)
+                                      .filter(id => !seance.classe.eleves.some(e => e.eleve.id === id));
+                                    const extraPresences = seance.presences.filter(p => destRRExtraIds.includes(p.eleveId));
+                                    const extraAsEleves = extraPresences.map(p => ({ eleve: p.eleve }));
+                                    const combined = [...seance.classe.eleves, ...extraAsEleves]
+                                      .sort((a,b) => `${a.eleve.nom} ${a.eleve.prenom}`.localeCompare(`${b.eleve.nom} ${b.eleve.prenom}`));
+                                    return combined.map(eleveInClasse => {
                                     const presence = seance.presences?.find(p => p.eleveId === eleveInClasse.eleve.id);
                                     const status = presence?.statut || 'no_status';
-                                    
+                                    const originRR = seance.rrMap?.origin?.find(r => r.eleveId === eleveInClasse.eleve.id);
+                                    const destRR = seance.rrMap?.destination?.find(r => r.eleveId === eleveInClasse.eleve.id);
+                                    const rrType = originRR ? 'origin' : destRR ? 'destination' : null;
+                                    const rowBg = rrType === 'origin'
+                                      ? 'rgba(245, 124, 0, 0.12)'
+                                      : rrType === 'destination'
+                                        ? 'rgba(25, 118, 210, 0.12)'
+                                        : 'var(--color-bg-primary)';
+                                    const rowBorder = rrType === 'origin'
+                                      ? '1px solid rgba(245,124,0,0.4)'
+                                      : rrType === 'destination'
+                                        ? '1px solid rgba(25,118,210,0.4)'
+                                        : '1px solid var(--color-border-light)';
                                     return (
-                                      <Box 
+                                      <Box
                                         key={eleveInClasse.eleve.id}
-                                        sx={{ 
-                                          display: 'flex', 
-                                          justifyContent: 'space-between', 
+                                        sx={{
+                                          display: 'flex',
+                                          justifyContent: 'space-between',
                                           alignItems: 'center',
                                           py: 0.5,
                                           px: 1,
                                           mb: 0.5,
-                                          bgcolor: 'var(--color-bg-primary)',
+                                          bgcolor: rowBg,
                                           borderRadius: 1,
-                                          border: '1px solid var(--color-border-light)'
+                                          border: rowBorder,
+                                          transition: 'background-color 0.2s ease'
                                         }}
                                       >
-                                        <Typography variant="caption" sx={{ 
-                                          color: 'var(--color-text-primary)',
+                                        <Typography variant="caption" sx={{
+                                          color: destRR ? '#1976d2' : originRR ? '#f57c00' : 'var(--color-text-primary)',
                                           fontSize: '0.75rem',
                                           flex: 1,
                                           textOverflow: 'ellipsis',
                                           overflow: 'hidden',
-                                          whiteSpace: 'nowrap'
+                                          whiteSpace: 'nowrap',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          gap: 0.5
                                         }}>
                                           {eleveInClasse.eleve.prenom} {eleveInClasse.eleve.nom}
+                                          {originRR && <Chip size="small" label="RR o" sx={{ bgcolor: 'rgba(245,124,0,0.25)', color: '#f57c00' }} />}
+                                          {destRR && <Chip size="small" label="RR d" sx={{ bgcolor: 'rgba(25,118,210,0.25)', color: '#1976d2' }} />}
                                         </Typography>
                                         
                                         <Box display="flex" gap={0.5}>
@@ -1209,6 +1354,7 @@ const AttendanceView: React.FC = () => {
                                                 color: 'var(--color-success-500)'
                                               }
                                             }}
+                                            disabled={!!presence && updatingPresenceIds.has(presence.id)}
                                           >
                                             <CheckCircle sx={{ fontSize: '1rem' }} />
                                           </IconButton>
@@ -1230,6 +1376,7 @@ const AttendanceView: React.FC = () => {
                                                 color: 'var(--color-error-500)'
                                               }
                                             }}
+                                            disabled={!!presence && updatingPresenceIds.has(presence.id)}
                                           >
                                             <Cancel sx={{ fontSize: '1rem' }} />
                                           </IconButton>
@@ -1251,6 +1398,7 @@ const AttendanceView: React.FC = () => {
                                                 color: 'var(--color-warning-500)'
                                               }
                                             }}
+                                            disabled={!!presence && updatingPresenceIds.has(presence.id)}
                                           >
                                             <Schedule sx={{ fontSize: '1rem' }} />
                                           </IconButton>
@@ -1272,6 +1420,7 @@ const AttendanceView: React.FC = () => {
                                                 color: 'var(--color-text-primary)'
                                               }
                                             }}
+                                            disabled={!!presence && updatingPresenceIds.has(presence.id)}
                                           >
                                             <HelpOutline sx={{ fontSize: '1rem' }} />
                                           </IconButton>
@@ -1292,7 +1441,8 @@ const AttendanceView: React.FC = () => {
                                         </Box>
                                       </Box>
                                     );
-                                  })}
+                                  });
+                                  })()}
                                 </Box>
                               </Box>
                             </CardContent>
@@ -1381,7 +1531,7 @@ const AttendanceView: React.FC = () => {
                           display: 'flex',
                           alignItems: 'center',
                           gap: 1,
-                          mb: 0.5
+                          mb: 0.25
                         }}>
                           <CalendarToday sx={{ fontSize: '1rem' }} />
                           {seanceDate.toLocaleDateString('fr-FR', { 
@@ -1390,6 +1540,13 @@ const AttendanceView: React.FC = () => {
                             month: 'short',
                             year: 'numeric'
                           })}
+                        </Typography>
+                        <Typography variant="body2" sx={{
+                          color: 'var(--color-primary-400)',
+                          fontWeight: 600,
+                          mb: 0.5
+                        }}>
+                          Semaine {seance.weekNumber ?? getWeekNumber(new Date(seance.dateHeure))}
                         </Typography>
                         
                         <Typography variant="body2" sx={{ 
@@ -1416,45 +1573,81 @@ const AttendanceView: React.FC = () => {
                       
                       {/* Students List with Status Buttons */}
                       <Box sx={{ mt: 2 }}>
-                        <Typography variant="caption" sx={{ 
-                          color: 'var(--color-text-secondary)',
-                          fontWeight: 'bold',
-                          mb: 1,
-                          display: 'block'
-                        }}>
-                          Élèves ({seance.classe.eleves.length})
-                        </Typography>
+                        {(() => {
+                          const destRRExtraIds = (seance.rrMap?.destination || [])
+                            .map(r => r.eleveId)
+                            .filter(id => !seance.classe.eleves.some(e => e.eleve.id === id));
+                          const extraPresences = seance.presences.filter(p => destRRExtraIds.includes(p.eleveId));
+                          const extraAsEleves = extraPresences.map(p => ({ eleve: p.eleve }));
+                          const combined = [...seance.classe.eleves, ...extraAsEleves]
+                            .sort((a,b) => `${a.eleve.nom} ${a.eleve.prenom}`.localeCompare(`${b.eleve.nom} ${b.eleve.prenom}`));
+                          return (
+                            <Typography variant="caption" sx={{ 
+                              color: 'var(--color-text-secondary)',
+                              fontWeight: 'bold',
+                              mb: 1,
+                              display: 'block'
+                            }}>
+                              Élèves ({combined.length})
+                            </Typography>
+                          );
+                        })()}
                         
                         <Box sx={{ maxHeight: '200px', overflowY: 'auto' }}>
-                          {seance.classe.eleves.map(eleveInClasse => {
-                            // Find the presence record for this student
+                          {(() => {
+                            const destRRExtraIds = (seance.rrMap?.destination || [])
+                              .map(r => r.eleveId)
+                              .filter(id => !seance.classe.eleves.some(e => e.eleve.id === id));
+                            const extraPresences = seance.presences.filter(p => destRRExtraIds.includes(p.eleveId));
+                            const extraAsEleves = extraPresences.map(p => ({ eleve: p.eleve }));
+                            const combined = [...seance.classe.eleves, ...extraAsEleves]
+                              .sort((a,b) => `${a.eleve.nom} ${a.eleve.prenom}`.localeCompare(`${b.eleve.nom} ${b.eleve.prenom}`));
+                            return combined.map(eleveInClasse => {
                             const presence = seance.presences?.find(p => p.eleveId === eleveInClasse.eleve.id);
                             const status = presence?.statut || 'no_status';
-                            
+                            const originRR = seance.rrMap?.origin?.find(r => r.eleveId === eleveInClasse.eleve.id);
+                            const destRR = seance.rrMap?.destination?.find(r => r.eleveId === eleveInClasse.eleve.id);
+                            const rrType = originRR ? 'origin' : destRR ? 'destination' : null;
+                            const rowBg = rrType === 'origin'
+                              ? 'rgba(245, 124, 0, 0.12)'
+                              : rrType === 'destination'
+                                ? 'rgba(25, 118, 210, 0.12)'
+                                : 'var(--color-bg-primary)';
+                            const rowBorder = rrType === 'origin'
+                              ? '1px solid rgba(245,124,0,0.4)'
+                              : rrType === 'destination'
+                                ? '1px solid rgba(25,118,210,0.4)'
+                                : '1px solid var(--color-border-light)';
                             return (
-                              <Box 
+                              <Box
                                 key={eleveInClasse.eleve.id}
-                                sx={{ 
-                                  display: 'flex', 
-                                  justifyContent: 'space-between', 
+                                sx={{
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
                                   alignItems: 'center',
                                   py: 0.5,
                                   px: 1,
                                   mb: 0.5,
-                                  bgcolor: 'var(--color-bg-primary)',
+                                  bgcolor: rowBg,
                                   borderRadius: 1,
-                                  border: '1px solid var(--color-border-light)'
+                                  border: rowBorder,
+                                  transition: 'background-color 0.2s ease'
                                 }}
                               >
-                                <Typography variant="caption" sx={{ 
-                                  color: 'var(--color-text-primary)',
+                                <Typography variant="caption" sx={{
+                                  color: destRR ? '#1976d2' : originRR ? '#f57c00' : 'var(--color-text-primary)',
                                   fontSize: '0.75rem',
                                   flex: 1,
                                   textOverflow: 'ellipsis',
                                   overflow: 'hidden',
-                                  whiteSpace: 'nowrap'
+                                  whiteSpace: 'nowrap',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: 0.5
                                 }}>
                                   {eleveInClasse.eleve.prenom} {eleveInClasse.eleve.nom}
+                                  {originRR && <Chip size="small" label="RR o" sx={{ bgcolor: 'rgba(245,124,0,0.25)', color: '#f57c00' }} />}
+                                  {destRR && <Chip size="small" label="RR d" sx={{ bgcolor: 'rgba(25,118,210,0.25)', color: '#1976d2' }} />}
                                 </Typography>
                                 
                                 <Box display="flex" gap={0.5}>
@@ -1475,6 +1668,7 @@ const AttendanceView: React.FC = () => {
                                         color: 'var(--color-success-500)'
                                       }
                                     }}
+                                    disabled={!!presence && updatingPresenceIds.has(presence.id)}
                                   >
                                     <CheckCircle sx={{ fontSize: '1rem' }} />
                                   </IconButton>
@@ -1496,6 +1690,7 @@ const AttendanceView: React.FC = () => {
                                         color: 'var(--color-error-500)'
                                       }
                                     }}
+                                    disabled={!!presence && updatingPresenceIds.has(presence.id)}
                                   >
                                     <Cancel sx={{ fontSize: '1rem' }} />
                                   </IconButton>
@@ -1517,6 +1712,7 @@ const AttendanceView: React.FC = () => {
                                         color: 'var(--color-warning-500)'
                                       }
                                     }}
+                                    disabled={!!presence && updatingPresenceIds.has(presence.id)}
                                   >
                                     <Schedule sx={{ fontSize: '1rem' }} />
                                   </IconButton>
@@ -1538,6 +1734,7 @@ const AttendanceView: React.FC = () => {
                                         color: 'var(--color-text-primary)'
                                       }
                                     }}
+                                    disabled={!!presence && updatingPresenceIds.has(presence.id)}
                                   >
                                     <HelpOutline sx={{ fontSize: '1rem' }} />
                                   </IconButton>
@@ -1558,7 +1755,8 @@ const AttendanceView: React.FC = () => {
                                 </Box>
                               </Box>
                             );
-                          })}
+                          });
+                          })()}
                         </Box>
                       </Box>
                     </CardContent>
@@ -1605,8 +1803,25 @@ const AttendanceView: React.FC = () => {
           <DialogTitle sx={{ bgcolor: 'var(--color-bg-secondary)', borderBottom: '1px solid var(--color-border-light)' }}>
             <Box display="flex" justifyContent="space-between" alignItems="center">
               <Box>
-                <Typography variant="h6">{selectedSeance.classe.nom}</Typography>
-                <Typography variant="body2" sx={{ color: 'var(--color-text-secondary)' }}>
+                <Box display="flex" alignItems="center" gap={2} flexWrap="wrap">
+                  <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    {selectedSeance.classe.nom}
+                  </Typography>
+                  <Box sx={{
+                    px: 1.4,
+                    py: 0.4,
+                    borderRadius: 1,
+                    background: 'linear-gradient(90deg, var(--color-primary-600), var(--color-primary-400))',
+                    color: 'var(--color-text-on-primary)',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    letterSpacing: '0.5px',
+                    boxShadow: 2
+                  }}>
+                    Semaine {selectedSeance.weekNumber ?? getWeekNumber(new Date(selectedSeance.dateHeure))}
+                  </Box>
+                </Box>
+                <Typography variant="body2" sx={{ color: 'var(--color-text-secondary)', mt: 0.5 }}>
                   {attendanceService.formatDateTime(selectedSeance.dateHeure)}
                 </Typography>
               </Box>
@@ -1650,22 +1865,40 @@ const AttendanceView: React.FC = () => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {selectedSeance.presences
-                  .sort((a, b) => `${a.eleve.nom} ${a.eleve.prenom}`.localeCompare(`${b.eleve.nom} ${b.eleve.prenom}`))
-                  .map(presence => (
-                  <TableRow key={presence.id}>
+                {(() => {
+                  // Build combined list so synthetic RR destination students (already in presences with negative id) are included & sorted
+                  const list = [...selectedSeance.presences]
+                    .sort((a, b) => `${a.eleve.nom} ${a.eleve.prenom}`.localeCompare(`${b.eleve.nom} ${b.eleve.prenom}`));
+                  return list.map(presence => {
+                    const originRR = selectedSeance.rrMap?.origin?.find(r => r.eleveId === presence.eleveId);
+                    const destRR = selectedSeance.rrMap?.destination?.find(r => r.eleveId === presence.eleveId);
+                    const rrType = originRR ? 'origin' : destRR ? 'destination' : null;
+                    const rowBg = rrType === 'origin' 
+                      ? 'rgba(245, 124, 0, 0.12)' /* amber highlight */
+                      : rrType === 'destination' 
+                        ? 'rgba(25, 118, 210, 0.12)' /* blue highlight */
+                        : 'transparent';
+                    const rowBorderColor = rrType === 'origin' 
+                      ? 'rgba(245, 124, 0, 0.4)' 
+                      : rrType === 'destination' 
+                        ? 'rgba(25, 118, 210, 0.4)' 
+                        : 'var(--color-border-light)';
+                    return (
+                      <TableRow 
+                        key={presence.id}
+                        sx={{
+                          backgroundColor: rowBg,
+                          '&:hover': { backgroundColor: rowBg || 'var(--color-bg-tertiary)' },
+                          borderLeft: rrType ? `4px solid ${rowBorderColor}` : undefined,
+                          transition: 'background-color 0.2s ease'
+                        }}
+                      >
                     <TableCell sx={{ color: 'var(--color-text-primary)' }}>
-                      {(() => {
-                        const originRR = selectedSeance.rrMap?.origin?.find(r => r.eleveId === presence.eleveId);
-                        const destRR = selectedSeance.rrMap?.destination?.find(r => r.eleveId === presence.eleveId);
-                        return (
-                          <Typography variant="body2" sx={{ color: destRR ? '#1976d2' : originRR ? '#f57c00' : 'var(--color-text-primary)' }}>
-                            {presence.eleve.prenom} {presence.eleve.nom}
-                            {originRR && <span title="En attente RR" style={{ marginLeft: 8 }}>↑ en attente</span>}
-                            {destRR && <span title="RR destination" style={{ marginLeft: 8 }}>↓ pas de status</span>}
-                          </Typography>
-                        );
-                      })()}
+                      <Typography variant="body2" sx={{ color: destRR ? '#1976d2' : originRR ? '#f57c00' : 'var(--color-text-primary)', display: 'flex', alignItems: 'center', gap: 1 }}>
+                        {presence.eleve.prenom} {presence.eleve.nom}
+                        {originRR && <Chip size="small" label="RR origine" sx={{ bgcolor: 'rgba(245,124,0,0.2)', color: '#f57c00' }} />}
+                        {destRR && <Chip size="small" label="RR destin." sx={{ bgcolor: 'rgba(25,118,210,0.2)', color: '#1976d2' }} />}
+                      </Typography>
                     </TableCell>
                     <TableCell sx={{ color: 'var(--color-text-primary)' }}>
                       <Chip
@@ -1681,6 +1914,7 @@ const AttendanceView: React.FC = () => {
                             size="small"
                             color={presence.statut === 'present' ? 'success' : 'default'}
                             onClick={() => updateAttendance(presence.id, 'present')}
+                            disabled={updatingPresenceIds.has(presence.id)}
                           >
                             <CheckCircle />
                           </IconButton>
@@ -1690,6 +1924,7 @@ const AttendanceView: React.FC = () => {
                             size="small"
                             color={presence.statut === 'absent' ? 'error' : 'default'}
                             onClick={() => updateAttendance(presence.id, 'absent')}
+                            disabled={updatingPresenceIds.has(presence.id)}
                           >
                             <Cancel />
                           </IconButton>
@@ -1699,6 +1934,7 @@ const AttendanceView: React.FC = () => {
                             size="small"
                             color={presence.statut === 'awaiting' ? 'warning' : 'default'}
                             onClick={() => updateAttendance(presence.id, 'awaiting')}
+                            disabled={updatingPresenceIds.has(presence.id)}
                           >
                             <Schedule />
                           </IconButton>
@@ -1708,11 +1944,12 @@ const AttendanceView: React.FC = () => {
                             size="small"
                             color={presence.statut === 'no_status' ? 'default' : 'default'}
                             onClick={() => updateAttendance(presence.id, 'no_status')}
+                            disabled={updatingPresenceIds.has(presence.id)}
                           >
                             <HelpOutline />
                           </IconButton>
                         </Tooltip>
-                        <Tooltip title="RR">
+                        <Tooltip title={originRR || destRR ? 'Voir / Supprimer RR' : 'Créer RR'}>
                           <IconButton
                             size="small"
                             onClick={() => {
@@ -1723,7 +1960,12 @@ const AttendanceView: React.FC = () => {
                               return openRRModalPrefilled(selectedSeance.id, presence.eleveId);
                             }}
                           >
-                            <ViewModule />
+                            {(() => {
+                              const originRR = selectedSeance.rrMap?.origin?.find(r => r.eleveId === presence.eleveId);
+                              const destRR = selectedSeance.rrMap?.destination?.find(r => r.eleveId === presence.eleveId);
+                              if (originRR || destRR) return <Autorenew color="primary" />;
+                              return <AddCircleOutline />;
+                            })()}
                           </IconButton>
                         </Tooltip>
                       </Box>
@@ -1751,7 +1993,9 @@ const AttendanceView: React.FC = () => {
                       />
                     </TableCell>
                   </TableRow>
-                ))}
+                    );
+                  });
+                })()}
               </TableBody>
             </Table>
           </DialogContent>
@@ -1765,6 +2009,8 @@ const AttendanceView: React.FC = () => {
         defaultEleveId={rrDefaults.eleveId}
         readOnly={!!rrReadonlyInfo}
         existingInfo={rrReadonlyInfo}
+        onCreated={handleRRCreated}
+        onDeleted={handleRRDeleted}
       />
     </Container>
     </div>

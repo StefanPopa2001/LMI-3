@@ -1,0 +1,17 @@
+{
+  "name": "lmi-root",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "bash ./dev.sh",
+    "dev:fast": "bash ./dev.sh",
+    "dev:js": "concurrently -n backend,frontend -c blue,green \"npm:dev --workspace backend\" \"npm:dev --workspace frontend\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0"
+  },
+  "workspaces": [
+    "backend",
+    "frontend"
+  ]
+}

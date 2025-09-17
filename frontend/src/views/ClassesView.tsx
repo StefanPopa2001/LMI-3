@@ -149,6 +149,7 @@ const ClassesView: React.FC = () => {
     jourSemaine: 1, // Default to Monday
   heureDebut: '09:00', // Default to 9:00
   rrPossibles: false,
+    isRecuperation: false,
     eleveIds: []
   });
 
@@ -473,6 +474,7 @@ const ClassesView: React.FC = () => {
       jourSemaine: classe.jourSemaine || 1,
       heureDebut: classe.heureDebut || '09:00',
       rrPossibles: !!classe.rrPossibles,
+      isRecuperation: !!classe.isRecuperation,
       eleveIds: classe.eleves.map(e => e.eleve.id)
     });
     
@@ -543,6 +545,7 @@ const ClassesView: React.FC = () => {
       jourSemaine: 1,
       heureDebut: '09:00',
   rrPossibles: false,
+      isRecuperation: false,
       eleveIds: []
     });
     setWeekNumbers('');
@@ -2416,6 +2419,17 @@ const ClassesView: React.FC = () => {
               }
               label="RR possibles"
             />
+
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={!!classForm.isRecuperation}
+                  onChange={(e) => setClassForm(prev => ({ ...prev, isRecuperation: e.target.checked }))}
+                  sx={{ color: '#bdbdbd' }}
+                />
+              }
+              label="Classe de récupération (cours du soir)"
+            />
             
             <Box display="flex" gap={2}>
               <FormControl 
@@ -2835,6 +2849,17 @@ const ClassesView: React.FC = () => {
                 />
               }
               label="RR possibles"
+            />
+
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={!!classForm.isRecuperation}
+                  onChange={(e) => setClassForm(prev => ({ ...prev, isRecuperation: e.target.checked }))}
+                  sx={{ color: '#bdbdbd' }}
+                />
+              }
+              label="Classe de récupération (cours du soir)"
             />
             
             <Box display="flex" gap={2}>

@@ -121,6 +121,7 @@ model Classe {
   jourSemaine       Int?     // Default day of week (0=Sunday, 1=Monday, etc.)
   heureDebut        String?  // Default start time (HH:MM format)
   rrPossibles       Boolean  @default(false)
+  isRecuperation    Boolean  @default(false) // Evening recuperation class (cours du soir)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
   
@@ -237,6 +238,8 @@ model ReplacementRequest {
   status               String    @default("open") // open, completed, cancelled
   destStatut           String    @default("no_status") // present, absent, no_status
   notes                String?
+  rrType               String    @default("same_week") // same_week | evening_recuperation
+  penalizeRR           Boolean   @default(true) // Whether to decrement rrRestantes
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 

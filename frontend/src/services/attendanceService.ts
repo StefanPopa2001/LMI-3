@@ -35,6 +35,7 @@ export interface SeanceWithAttendance {
     id: number;
     nom: string;
   level?: string;
+    isRecuperation?: boolean;
     teacher: {
       id: number;
       nom: string;

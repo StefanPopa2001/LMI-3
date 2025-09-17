@@ -52,6 +52,7 @@ export interface Classe {
   jourSemaine?: number; // Default day of week (0=Sunday, 1=Monday, etc.)
   heureDebut?: string; // Default start time (HH:MM format)
   rrPossibles: boolean;
+  isRecuperation?: boolean;
   createdAt: string;
   updatedAt: string;
   teacher: Teacher;
@@ -72,6 +73,7 @@ export interface CreateClasseData {
   jourSemaine?: number;
   heureDebut?: string;
   rrPossibles?: boolean;
+  isRecuperation?: boolean;
   eleveIds?: number[];
 }
 
@@ -88,6 +90,7 @@ export interface UpdateClasseData {
   jourSemaine?: number;
   heureDebut?: string;
   rrPossibles?: boolean;
+  isRecuperation?: boolean;
   eleveIds?: number[];
 }
 

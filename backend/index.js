@@ -888,7 +888,7 @@ async function startServer() {
 
   // Create new class
   app.post("/admin/classes", authenticate, requireAdmin, async (req, res) => {
-    let { nom, description, level, typeCours, location, salle, teacherId, dureeSeance, semainesSeances, jourSemaine, heureDebut, rrPossibles = false, eleveIds = [] } = req.body;
+    let { nom, description, level, typeCours, location, salle, teacherId, dureeSeance, semainesSeances, jourSemaine, heureDebut, rrPossibles = false, isRecuperation = false, eleveIds = [] } = req.body;
 
     // Validate required fields
     if (!nom || nom.trim() === '') {
@@ -917,7 +917,8 @@ async function startServer() {
     typeCours = typeCours ? sanitizeInput(typeCours) : null;
     location = location ? sanitizeInput(location) : null;
     salle = salle ? sanitizeInput(salle) : null;
-    heureDebut = heureDebut ? sanitizeInput(heureDebut) : null;
+  heureDebut = heureDebut ? sanitizeInput(heureDebut) : null;
+  isRecuperation = !!isRecuperation;
 
   try {
       // Verify teacher exists
@@ -943,8 +944,9 @@ async function startServer() {
             dureeSeance: parseInt(dureeSeance),
             semainesSeances: JSON.stringify(semainesSeances),
             jourSemaine: jourSemaine !== undefined ? parseInt(jourSemaine) : null,
-      heureDebut: heureDebut || null,
-      rrPossibles: !!rrPossibles
+            heureDebut: heureDebut || null,
+            rrPossibles: !!rrPossibles,
+            isRecuperation: isRecuperation
           }
         });
 
@@ -1007,7 +1009,7 @@ async function startServer() {
     // Update class
   app.put("/admin/classes/:id", authenticate, requireAdmin, async (req, res) => {
     const { id } = req.params;
-    let { nom, description, level, typeCours, location, salle, teacherId, dureeSeance, semainesSeances, jourSemaine, heureDebut, rrPossibles, eleveIds } = req.body;
+    let { nom, description, level, typeCours, location, salle, teacherId, dureeSeance, semainesSeances, jourSemaine, heureDebut, rrPossibles, isRecuperation, eleveIds } = req.body;
 
     // Sanitize inputs
     if (nom) nom = sanitizeInput(nom);
@@ -1016,7 +1018,8 @@ async function startServer() {
     if (typeCours) typeCours = sanitizeInput(typeCours);
     if (location) location = sanitizeInput(location);
     if (salle) salle = sanitizeInput(salle);
-    if (heureDebut) heureDebut = sanitizeInput(heureDebut);
+  if (heureDebut) heureDebut = sanitizeInput(heureDebut);
+  if (isRecuperation !== undefined) isRecuperation = !!isRecuperation;
 
     try {
       const updateData = {};
@@ -1031,7 +1034,8 @@ async function startServer() {
       if (semainesSeances) updateData.semainesSeances = JSON.stringify(semainesSeances);
       if (jourSemaine !== undefined) updateData.jourSemaine = parseInt(jourSemaine);
       if (heureDebut !== undefined) updateData.heureDebut = heureDebut;
-      if (rrPossibles !== undefined) updateData.rrPossibles = !!rrPossibles;
+  if (rrPossibles !== undefined) updateData.rrPossibles = !!rrPossibles;
+  if (isRecuperation !== undefined) updateData.isRecuperation = !!isRecuperation;
 
       await prisma.$transaction(async (tx) => {
         // Update class core fields
@@ -1653,8 +1657,68 @@ async function startServer() {
           dateHeure: 'asc'
         }
       });
+      // isRecuperation is now part of classe model; returned automatically
 
-      res.json(seances);
+      // Attach RR info & ensure destination RR students appear in presences even if not part of classe.eleves yet
+      const seanceIds = seances.map(s => s.id);
+      const rrBySeanceDest = await prisma.replacementRequest.findMany({
+        where: { destinationSeanceId: { in: seanceIds }, status: { not: 'cancelled' } },
+        select: { id: true, eleveId: true, destinationSeanceId: true, status: true, destStatut: true }
+      });
+      const rrBySeanceOrigin = await prisma.replacementRequest.findMany({
+        where: { originSeanceId: { in: seanceIds }, status: { not: 'cancelled' } },
+        select: { id: true, eleveId: true, originSeanceId: true, status: true, destStatut: true }
+      });
+
+      const rrDestMap = new Map(); // seanceId -> array
+      const rrOriginMap = new Map();
+      for (const rr of rrBySeanceDest) {
+        if (!rrDestMap.has(rr.destinationSeanceId)) rrDestMap.set(rr.destinationSeanceId, []);
+        rrDestMap.get(rr.destinationSeanceId).push(rr);
+      }
+      for (const rr of rrBySeanceOrigin) {
+        if (!rrOriginMap.has(rr.originSeanceId)) rrOriginMap.set(rr.originSeanceId, []);
+        rrOriginMap.get(rr.originSeanceId).push(rr);
+      }
+
+      // Fetch all involved eleves to build synthetic presence entries if needed
+      const rrEleveIds = Array.from(new Set(rrBySeanceDest.map(r => r.eleveId)));
+      let rrEleves = [];
+      if (rrEleveIds.length) {
+        rrEleves = await prisma.eleve.findMany({ where: { id: { in: rrEleveIds } }, select: { id: true, nom: true, prenom: true } });
+      }
+      const eleveMap = new Map(rrEleves.map(e => [e.id, e]));
+
+      const enriched = seances.map(s => {
+        const destRRs = rrDestMap.get(s.id) || [];
+        const originRRs = rrOriginMap.get(s.id) || [];
+        const existingPresenceEleveIds = new Set(s.presences.map(p => p.eleveId));
+        const syntheticPresences = [];
+        for (const rr of destRRs) {
+          if (!existingPresenceEleveIds.has(rr.eleveId)) {
+            const el = eleveMap.get(rr.eleveId);
+            if (el) {
+              syntheticPresences.push({
+                id: -1 * (100000 + rr.eleveId + s.id), // negative synthetic id
+                seanceId: s.id,
+                eleveId: rr.eleveId,
+                statut: rr.destStatut || 'no_status',
+                notes: null,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                eleve: el
+              });
+            }
+          }
+        }
+        return {
+          ...s,
+          presences: [...s.presences, ...syntheticPresences],
+          rrMap: { origin: originRRs, destination: destRRs }
+        };
+      });
+
+      res.json(enriched);
     } catch (err) {
       console.error("Get weekly seances error:", err);
       res.status(500).json({ error: "Failed to fetch weekly seances" });
@@ -1751,8 +1815,25 @@ async function startServer() {
           select: { id: true, eleveId: true, originSeanceId: true, status: true, destStatut: true }
         })
       ]);
+      // Ensure destination RR students appear even if not part of classe.eleves
+      const existingPresenceEleveIds2 = new Set(seance.presences.map(p => p.eleveId));
+      const missingDestEleveIds = destinationRRs.filter(r => !existingPresenceEleveIds2.has(r.eleveId)).map(r => r.eleveId);
+      let syntheticPresences2 = [];
+      if (missingDestEleveIds.length) {
+        const eles = await prisma.eleve.findMany({ where: { id: { in: missingDestEleveIds } }, select: { id: true, nom: true, prenom: true } });
+        syntheticPresences2 = eles.map(el => ({
+          id: -1 * (200000 + el.id + seanceId),
+          seanceId: seanceId,
+          eleveId: el.id,
+          statut: 'no_status',
+          notes: null,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          eleve: el
+        }));
+      }
 
-      res.json({ ...seance, rrMap: { origin: originRRs, destination: destinationRRs } });
+      res.json({ ...seance, presences: [...seance.presences, ...syntheticPresences2], rrMap: { origin: originRRs, destination: destinationRRs } });
     } catch (err) {
       console.error("Get seance attendance error:", err);
       res.status(500).json({ error: "Failed to fetch seance attendance" });
@@ -1974,40 +2055,113 @@ async function startServer() {
 
   // ==================== RR ENDPOINTS ====================
 
-  // Create RR
+  // Create RR (supports same-week vs evening recuperation)
   app.post('/admin/rr', verifyAdminToken, async (req, res) => {
     try {
-      let { eleveId, originSeanceId, destinationSeanceId, notes } = req.body;
+      let { eleveId, originSeanceId, destinationSeanceId, notes, rrType, penalizeRR } = req.body;
       eleveId = parseInt(eleveId);
       originSeanceId = parseInt(originSeanceId);
       destinationSeanceId = parseInt(destinationSeanceId);
+      rrType = rrType || 'same_week'; // same_week | evening_recuperation
+      if (typeof penalizeRR === 'undefined' || rrType === 'same_week') {
+        // same_week defaults to no penalty, evening_recuperation defaults true
+        penalizeRR = rrType === 'evening_recuperation';
+      }
 
-      // Ensure presences exist with default statuses
-      await prisma.presence.upsert({
-        where: { seanceId_eleveId: { seanceId: originSeanceId, eleveId } },
-        create: { seanceId: originSeanceId, eleveId, statut: 'awaiting' },
-        update: { statut: 'awaiting' }
+      const now = new Date();
+      const origin = await prisma.seance.findUnique({
+        where: { id: originSeanceId },
+        include: { classe: true }
       });
-      await prisma.presence.upsert({
-        where: { seanceId_eleveId: { seanceId: destinationSeanceId, eleveId } },
-        create: { seanceId: destinationSeanceId, eleveId, statut: 'no_status' },
-        update: { statut: 'no_status' }
+      const destination = await prisma.seance.findUnique({
+        where: { id: destinationSeanceId },
+        include: { classe: true }
       });
+      if (!origin || !destination) return res.status(400).json({ error: 'Séances invalides' });
 
-      const rr = await prisma.replacementRequest.create({
-        data: {
-          eleveId,
-          originSeanceId,
-          destinationSeanceId,
-          notes: notes ? sanitizeInput(notes) : null,
-          status: 'open',
-          destStatut: 'no_status'
+      // Basic time validations
+      if (destination.dateHeure < now) {
+        return res.status(400).json({ error: 'Séance de destination dans le passé' });
+      }
+
+      const sameLevel = origin.classe.level && destination.classe.level === origin.classe.level;
+      const destLevelEmpty = !destination.classe.level || destination.classe.level.trim() === '';
+
+      // Compute ISO week number helper
+      function getWeekNumber(date) {
+        const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+        const dayNum = d.getUTCDay() || 7;
+        d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+        const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+        return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+      }
+      const originWeek = getWeekNumber(new Date(origin.dateHeure));
+      const destWeek = getWeekNumber(new Date(destination.dateHeure));
+
+      if (rrType === 'same_week') {
+        if (originWeek !== destWeek) {
+          return res.status(400).json({ error: 'Destination pas dans la même semaine' });
         }
+        // Must be same level or empty
+        if (!sameLevel && !destLevelEmpty) {
+          return res.status(400).json({ error: 'Niveau incompatible pour rattrapage même semaine' });
+        }
+        // No penalty for same-week always
+        penalizeRR = false;
+      } else if (rrType === 'evening_recuperation') {
+        if (!destination.classe.isRecuperation) {
+          return res.status(400).json({ error: 'Destination non marquée comme cours de récupération (soir)' });
+        }
+        if (!sameLevel && !destLevelEmpty) {
+          return res.status(400).json({ error: 'Niveau incompatible pour récupération' });
+        }
+      } else {
+        return res.status(400).json({ error: 'Type RR invalide' });
+      }
+
+      // Transaction: create RR, ensure presences, adjust eleve rrRestantes if needed, lock destination level if recuperation & empty
+      const result = await prisma.$transaction(async (tx) => {
+        await tx.presence.upsert({
+          where: { seanceId_eleveId: { seanceId: originSeanceId, eleveId } },
+          create: { seanceId: originSeanceId, eleveId, statut: 'awaiting' },
+          update: { statut: 'awaiting' }
+        });
+        await tx.presence.upsert({
+          where: { seanceId_eleveId: { seanceId: destinationSeanceId, eleveId } },
+          create: { seanceId: destinationSeanceId, eleveId, statut: 'no_status' },
+          update: { statut: 'no_status' }
+        });
+
+        if (rrType === 'evening_recuperation' && destLevelEmpty) {
+          await tx.classe.update({
+            where: { id: destination.classeId },
+            data: { level: origin.classe.level }
+          });
+        }
+
+        if (penalizeRR) {
+          await tx.eleve.update({
+            where: { id: eleveId },
+            data: { rrRestantes: { decrement: 1 } }
+          });
+        }
+
+        const rr = await tx.replacementRequest.create({
+          data: {
+            eleveId,
+            originSeanceId,
+            destinationSeanceId,
+            notes: notes ? sanitizeInput(notes) : null,
+            status: 'open',
+            destStatut: 'no_status',
+            rrType,
+            penalizeRR
+          }
+        });
+        return rr;
       });
 
-  // Mark origin presence as awaiting (already ensured above)
-
-      res.json({ message: 'RR created', rr });
+      res.json({ message: 'RR created', rr: result });
     } catch (err) {
       console.error('Create RR error:', err);
       res.status(500).json({ error: 'Failed to create RR' });
@@ -2049,6 +2203,58 @@ async function startServer() {
     } catch (err) {
       console.error('Get RR error:', err);
       res.status(500).json({ error: 'Failed to fetch RR' });
+    }
+  });
+
+  // Cancel/Delete RR with reversal logic
+  app.delete('/admin/rr/:id', verifyAdminToken, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const rr = await prisma.replacementRequest.findUnique({
+        where: { id },
+        include: {
+          eleve: true,
+          originSeance: { include: { classe: true } },
+          destinationSeance: { include: { classe: true } },
+        }
+      });
+      if (!rr) return res.status(404).json({ error: 'RR not found' });
+      if (rr.status === 'cancelled') return res.json({ message: 'Already cancelled', rr });
+
+      const result = await prisma.$transaction(async (tx) => {
+        // Reversal of rrRestantes if penalized
+        if (rr.penalizeRR) {
+          await tx.eleve.update({
+            where: { id: rr.eleveId },
+            data: { rrRestantes: { increment: 1 } }
+          });
+        }
+
+        // Mark RR cancelled
+        const cancelled = await tx.replacementRequest.update({
+          where: { id: rr.id },
+          data: { status: 'cancelled', destStatut: 'cancelled' }
+        });
+
+        // Optionally unlock level: if destination class level was previously empty and only set because of recuperation.
+        // We do a heuristic: if rrType is evening_recuperation, destination class isRecuperation true, and there are NO other non-cancelled evening_recuperation RRs using this destination class whose origin class level differs, we leave as-is (keeping level). Unlocking automatically could be destructive; skipping for safety.
+        // If true unlock desired, uncomment code below.
+        // const otherRRs = await tx.replacementRequest.findMany({
+        //   where: { destinationSeanceId: rr.destinationSeanceId, status: { not: 'cancelled' } }
+        // });
+        // if (rr.rrType === 'evening_recuperation' && otherRRs.length === 0) {
+        //   await tx.classe.update({ where: { id: rr.destinationSeance.classeId }, data: { level: null } });
+        // }
+
+        // Remove destination presence if it exists (optional). We keep it to preserve history; if removal desired, uncomment:
+        // await tx.presence.deleteMany({ where: { seanceId: rr.destinationSeanceId, eleveId: rr.eleveId } });
+
+        return cancelled;
+      });
+      res.json({ message: 'RR cancelled', rr: result });
+    } catch (err) {
+      console.error('Delete RR error:', err);
+      res.status(500).json({ error: 'Failed to cancel RR' });
     }
   });
 

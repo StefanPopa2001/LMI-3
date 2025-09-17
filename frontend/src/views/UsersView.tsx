@@ -689,8 +689,6 @@ export default function UsersView() {
               initialState={{
                 sorting: { sortModel: [
                   { field: 'fonction', sort: 'asc' },
-                  { field: 'nom', sort: 'asc' },
-                  { field: 'prenom', sort: 'asc' },
                 ] },
                 pagination: { paginationModel: { pageSize: 10, page: 0 } }
               }}

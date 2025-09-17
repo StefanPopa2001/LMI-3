@@ -8,6 +8,8 @@ export interface RRItem {
   status: 'open' | 'completed' | 'cancelled';
   destStatut: 'present' | 'absent' | 'no_status';
   notes?: string | null;
+  rrType: 'same_week' | 'evening_recuperation';
+  penalizeRR: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -21,7 +23,7 @@ class RrService {
     };
   }
 
-  async createRR(payload: { eleveId: number; originSeanceId: number; destinationSeanceId: number; notes?: string }): Promise<{ message: string; rr: RRItem }> {
+  async createRR(payload: { eleveId: number; originSeanceId: number; destinationSeanceId: number; notes?: string; rrType?: 'same_week' | 'evening_recuperation'; penalizeRR?: boolean }): Promise<{ message: string; rr: RRItem }> {
     const response = await fetch(`${API_BASE_URL}/admin/rr`, {
       method: 'POST',
       headers: await this.getAuthHeaders(),
@@ -56,6 +58,15 @@ class RrService {
       body: JSON.stringify(data),
     });
     if (!response.ok) throw new Error('Failed to update RR');
+    return response.json();
+  }
+
+  async deleteRR(id: number): Promise<{ message: string; rr: RRItem }> {
+    const response = await fetch(`${API_BASE_URL}/admin/rr/${id}`, {
+      method: 'DELETE',
+      headers: await this.getAuthHeaders()
+    });
+    if (!response.ok) throw new Error('Failed to delete RR');
     return response.json();
   }
 }
