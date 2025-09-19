@@ -1,93 +1,68 @@
-"use client";
-import React from 'react';
-import { Box, Typography } from '@mui/material';
-import { useRouter } from 'next/navigation';
-import { getAccentuationColor } from '@/theme';
+"use client"
+import React from "react"
+import { useRouter } from "next/navigation"
+import { Card, CardContent } from "@mui/material"
 
 export interface DashboardFeatureCardProps {
-  title: string;
-  route: string;
-  icon: React.ReactNode;
-  color?: { accent: keyof ReturnType<typeof accentKeys> }; // optional future extension
-  gradientBase?: string; // fallback hex or css var
-  index?: number; // for color cycling
+  title: string
+  route: string
+  icon: React.ReactNode
+  description?: string
+  stats?: string
+  index?: number
 }
 
-const paletteCycle = ['blue', 'purple', 'orange', 'red', 'green', 'teal', 'indigo', 'pink'] as const;
-type CycleName = typeof paletteCycle[number];
-
-const accentKeys = () => ({ blue: true, purple: true, orange: true, red: true, green: true, teal: true, indigo: true, pink: true });
+const accentuationColors = ['blue', 'purple', 'green', 'orange', 'yellow', 'teal', 'indigo', 'pink', 'red', 'cyan']
 
 export const DashboardFeatureCard: React.FC<DashboardFeatureCardProps> = ({
   title,
   route,
   icon,
-  gradientBase,
+  description,
+  stats,
   index = 0,
 }) => {
-  const router = useRouter();
-  const accent = paletteCycle[index % paletteCycle.length] as CycleName;
-  const base = getAccentuationColor(accent as any, 'main');
-  const dark = getAccentuationColor(accent as any, 'dark');
-  const start = gradientBase || base;
-  const end = dark + 'ee';
+  const router = useRouter()
+  const color = accentuationColors[index % accentuationColors.length]
 
   return (
-    <Box
-      role="button"
-      aria-label={title}
-      tabIndex={0}
+    <Card
+      className="group relative overflow-hidden border-0 cursor-pointer transition-all duration-300 hover:scale-105 hover:shadow-2xl"
+      style={{ backgroundColor: 'var(--color-bg-secondary)' }}
       onClick={() => router.push(route)}
-      onKeyDown={(e) => (e.key === 'Enter' ? router.push(route) : undefined)}
-      sx={{
-        height: 200,
-        borderRadius: 3,
-        background: `linear-gradient(135deg, ${start} 0%, ${end} 100%)`,
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        alignItems: 'center',
-        p: 3,
-        cursor: 'pointer',
-        position: 'relative',
-        overflow: 'hidden',
-        border: '2px solid rgba(255,255,255,0.25)',
-        transition: 'all .3s cubic-bezier(.4,0,.2,1)',
-        '&:hover': {
-          transform: 'translateY(-8px) scale(1.02)',
-          boxShadow: `0 20px 40px ${base}55`,
-          border: '2px solid rgba(255,255,255,0.55)',
-          '&::before': { transform: 'scale(1.1)' },
-        },
-        '&::before': {
-          content: '""',
-            position: 'absolute',
-            inset: 0,
-            background: `linear-gradient(135deg, ${base}30 0%, ${base}50 100%)`,
-            borderRadius: 3,
-            transition: 'transform .3s ease',
-        },
-      }}
     >
-      <Box sx={{ color: 'white', mb: 1, zIndex: 1, filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))' }}>
-        {icon}
-      </Box>
-      <Typography
-        variant="h5"
-        sx={{
-          color: 'white',
-          fontWeight: 700,
-          textAlign: 'center',
-          zIndex: 1,
-          fontSize: '1.4rem',
-          textShadow: '0 2px 4px rgba(0,0,0,0.5)',
-          letterSpacing: '.5px',
-        }}
-      >
-        {title}
-      </Typography>
-    </Box>
-  );
-};
+      {/* Background pattern overlay */}
+      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300" style={{ backgroundColor: 'var(--color-bg-tertiary)' }} />
 
-export default DashboardFeatureCard;
+      {/* Subtle grid pattern */}
+      <div className="absolute inset-0 opacity-10">
+        <div
+          className="absolute inset-0"
+          style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fillRule='evenodd'%3E%3Cg fill='%23000000' fillOpacity='0.1'%3E%3Ccircle cx='7' cy='7' r='1'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+          }}
+        />
+      </div>
+
+      <CardContent className="relative p-8 h-40 flex flex-col justify-center">
+        {/* Icon and title section */}
+        <div className="flex flex-col items-center text-center space-y-6">
+          <div style={{ color: `var(--color-accentuation-${color})` }} className="transform group-hover:scale-110 transition-transform">
+            {React.isValidElement(icon)
+              ? React.cloneElement(icon as React.ReactElement<any>, {
+                  className: "w-16 h-16",
+                  style: { fontSize: "4rem" },
+                })
+              : icon}
+          </div>
+
+          <h3 style={{ color: 'var(--color-text-primary)' }} className="text-3xl font-bold transition-colors duration-300">
+            {title}
+          </h3>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+export default DashboardFeatureCard

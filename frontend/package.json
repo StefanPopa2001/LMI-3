@@ -19,9 +19,12 @@
     "crypto-js": "^4.2.0",
     "dayjs": "^1.11.18",
     "handsontable": "^16.0.1",
+    "lucide-react": "^0.544.0",
     "next": "15.5.2",
     "react": "19.1.0",
-    "react-dom": "19.1.0"
+    "react-dom": "19.1.0",
+    "react-dropzone": "^14.3.8",
+    "react-file-icon": "^1.6.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

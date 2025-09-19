@@ -1,207 +1,283 @@
-"use client";
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { 
-  Box, 
-  Typography, 
-  Button, 
-  Container, 
-  Paper, 
-  TextField, 
-  Alert,
-  Stack,
+"use client"
+import React, { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
+import ThemeRegistry from "../components/layout/ThemeRegistry"
+import authService from "../services/authService"
+
+// MUI
+import {
+  Container,
+  Box,
+  Card,
+  CardContent,
+  Typography,
+  TextField,
+  InputAdornment,
+  IconButton,
+  Button,
+  CircularProgress,
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions
-} from '@mui/material';
-import { Login, Key } from '@mui/icons-material';
-
-import ThemeRegistry from '../components/layout/ThemeRegistry';
-import BackButton from '../components/ui/BackButton';
-import authService from '../services/authService';
+  DialogActions,
+  useTheme,
+} from "@mui/material"
+import SchoolIcon from '@mui/icons-material/School'
+import EmailIcon from '@mui/icons-material/Email'
+import LockIcon from '@mui/icons-material/Lock'
+import KeyIcon from '@mui/icons-material/VpnKey'
+import Visibility from '@mui/icons-material/Visibility'
+import VisibilityOff from '@mui/icons-material/VisibilityOff'
 
 export default function LoginView() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [showPasswordChange, setShowPasswordChange] = useState(false);
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const router = useRouter();
+  const router = useRouter()
+  const theme = useTheme()
 
-  // Helper function to handle API errors
-  const handleApiError = (err: any) => {
-    if (err.message && err.message.startsWith('AUTH_ERROR:')) {
-      // Token is invalid/expired, but we're already on login page
-      setError('Session expired. Please log in again.');
-      return;
-    }
-    setError(err.message);
-  };
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [error, setError] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [showPasswordChange, setShowPasswordChange] = useState(false)
+  const [newPassword, setNewPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
+  const [showNewPassword, setShowNewPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
-  // Check if user is already authenticated
   useEffect(() => {
     if (authService.isAuthenticated()) {
-      router.push('/dashboard');
+      router.push("/dashboard")
     }
-  }, [router]);
+  }, [router])
 
-  async function handleLogin(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
+  const handleApiError = (err: any) => {
+    if (err?.message && String(err.message).startsWith("AUTH_ERROR:")) {
+      setError("Session expirée. Veuillez vous reconnecter.")
+      return
+    }
+    setError(err?.message ?? String(err))
+  }
+
+  async function handleLogin(e?: React.FormEvent) {
+    e?.preventDefault()
+    setError("")
+    setLoading(true)
 
     try {
-      const response = await authService.login(email, password);
-      
-      if (response.requirePasswordChange) {
-        setShowPasswordChange(true);
+      const response = await authService.login(email, password)
+      if (response?.requirePasswordChange) {
+        setShowPasswordChange(true)
       } else {
-        router.push("/dashboard");
+        router.push("/dashboard")
       }
     } catch (err: any) {
-      handleApiError(err);
+      handleApiError(err)
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
   }
 
   const handlePasswordChange = async () => {
     if (newPassword !== confirmPassword) {
-      setError('Passwords do not match');
-      return;
+      setError("Les mots de passe ne correspondent pas")
+      return
     }
-
-    // Remove password length constraint for first-time login
-    // if (newPassword.length < 8) {
-    //   setError('Password must be at least 8 characters long');
-    //   return;
-    // }
-
-    setError('');
-    setLoading(true);
-
+    setError("")
+    setLoading(true)
     try {
-      await authService.changePassword('', newPassword); // Empty current password for temporary passwords
-      setShowPasswordChange(false);
-      router.push('/dashboard');
+      await authService.changePassword("", newPassword)
+      setShowPasswordChange(false)
+      router.push("/dashboard")
     } catch (err: any) {
-      handleApiError(err);
+      handleApiError(err)
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   return (
     <ThemeRegistry>
-      <Container maxWidth="sm" sx={{ mt: 8 }}>
-        <BackButton />
-        
-        <Paper elevation={3} sx={{ p: 4 }}>
-          <Box sx={{ textAlign: 'center', mb: 4 }}>
-            <Login sx={{ fontSize: 60, color: 'primary.main', mb: 2 }} />
-            <Typography variant="h3" component="h1" gutterBottom>
-              LMI 3 Login
-            </Typography>
-            <Typography variant="h6" color="text.secondary">
-              Enter your credentials to access the system
-            </Typography>
-          </Box>
+      <Container
+        maxWidth="sm"
+        sx={{
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          py: 4,
+          background: theme.palette.background.default,
+        }}
+      >
+        <Box sx={{ width: '100%' }}>
+          <Card sx={{ mx: 2, borderRadius: 3 }}>
+            <CardContent sx={{ p: { xs: 3, sm: 6 } }}>
+              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                <Box
+                  sx={{
+                    width: 72,
+                    height: 72,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderRadius: '50%',
+                    bgcolor: 'primary.light',
+                  }}
+                >
+                  <SchoolIcon sx={{ color: 'primary.dark', fontSize: 34 }} />
+                </Box>
 
-          {error && (
-            <Alert severity="error" sx={{ mb: 3 }}>
-              {error}
-            </Alert>
-          )}
+                <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
+                  Logiscool Mons Intranet III
+                </Typography>
 
-          <Box component="form" onSubmit={handleLogin}>
-            <Stack spacing={3}>
-              <TextField
-                fullWidth
-                label="Email"
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                required
-                variant="outlined"
-                autoComplete="email"
-              />
-              <TextField
-                fullWidth
-                label="Password"
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                required
-                variant="outlined"
-                autoComplete="current-password"
-              />
-              <Button 
-                type="submit" 
-                variant="contained" 
-                size="large"
-                fullWidth
-                startIcon={<Login />}
-                disabled={loading}
-                sx={{ mt: 2 }}
-              >
-                {loading ? 'Signing In...' : 'Sign In'}
-              </Button>
-            </Stack>
-          </Box>
+                <Typography variant="body2" sx={{ color: 'text.secondary', textAlign: 'center' }}>
+                  Connectez vous avec le compte fourni par votre administrateur.
+                </Typography>
 
-          <Typography variant="body2" color="text.secondary" align="center" sx={{ mt: 3 }}>
-            Contact your administrator if you need help accessing your account.
-          </Typography>
-        </Paper>
+                {error && (
+                  <Box sx={{ width: '100%', mt: 1 }}>
+                    <Box sx={{ p: 2, bgcolor: 'error.light', borderRadius: 1 }}>
+                      <Typography variant="body2" sx={{ color: 'error.dark' }}>
+                        {error}
+                      </Typography>
+                    </Box>
+                  </Box>
+                )}
 
-        {/* Password Change Dialog */}
-        <Dialog open={showPasswordChange} onClose={() => {}} disableEscapeKeyDown>
-          <DialogTitle>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Key />
-              Password Change Required
-            </Box>
-          </DialogTitle>
+                <Box component="form" onSubmit={handleLogin} sx={{ width: '100%', mt: 1 }}>
+                  <TextField
+                    label="Email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    fullWidth
+                    margin="normal"
+                    variant="outlined"
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <EmailIcon />
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+
+                  <TextField
+                    label="Mot de passe"
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    fullWidth
+                    margin="normal"
+                    variant="outlined"
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <LockIcon />
+                        </InputAdornment>
+                      ),
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <IconButton onClick={() => setShowPassword((s) => !s)} edge="end" aria-label="toggle password visibility">
+                            {showPassword ? <VisibilityOff /> : <Visibility />}
+                          </IconButton>
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+
+                  <Button
+                    type="submit"
+                    variant="contained"
+                    color="primary"
+                    disabled={loading}
+                    fullWidth
+                    sx={{ mt: 2, py: 1.5, fontWeight: 600 }}
+                    startIcon={loading ? <CircularProgress size={18} color="inherit" /> : undefined}
+                  >
+                    {loading ? 'Connexion...' : 'Se connecter'}
+                  </Button>
+                </Box>
+
+                <Typography variant="caption" sx={{ color: 'text.secondary', mt: 2, textAlign: 'center' }}>
+                  Contactez popa.stefan.pro@gmail.com / 048 606 50 45 en cas de problème.
+                </Typography>
+              </Box>
+            </CardContent>
+          </Card>
+        </Box>
+
+        <Dialog open={showPasswordChange} onClose={() => setShowPasswordChange(false)} fullWidth maxWidth="sm">
+          <DialogTitle>Changement de mot de passe requis</DialogTitle>
           <DialogContent>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-              You must change your password before continuing. Please choose a strong password.
-            </Typography>
-            
-            <Stack spacing={2}>
-              <TextField
-                fullWidth
-                label="New Password"
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                required
-                helperText="Minimum 8 characters, must include uppercase, lowercase, and number"
-              />
-              
-              <TextField
-                fullWidth
-                label="Confirm New Password"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-              />
-            </Stack>
+            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', mb: 2 }}>
+              <Box sx={{ width: 40, height: 40, bgcolor: 'warning.light', borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <KeyIcon sx={{ color: 'warning.dark' }} />
+              </Box>
+              <Typography>Vous devez changer votre mot de passe avant de continuer. Choisissez un mot de passe sécurisé.</Typography>
+            </Box>
+
+            <TextField
+              label="Nouveau mot de passe"
+              type={showNewPassword ? 'text' : 'password'}
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              required
+              fullWidth
+              margin="normal"
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <LockIcon />
+                  </InputAdornment>
+                ),
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton onClick={() => setShowNewPassword((s) => !s)} edge="end" aria-label="toggle new password visibility">
+                      {showNewPassword ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
+              helperText="Minimum 8 caractères, inclure majuscule, minuscule et chiffre"
+            />
+
+            <TextField
+              label="Confirmez le nouveau mot de passe"
+              type={showConfirmPassword ? 'text' : 'password'}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+              fullWidth
+              margin="normal"
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <LockIcon />
+                  </InputAdornment>
+                ),
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton onClick={() => setShowConfirmPassword((s) => !s)} edge="end" aria-label="toggle confirm password visibility">
+                      {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
+            />
           </DialogContent>
           <DialogActions>
-            <Button 
-              onClick={handlePasswordChange} 
-              variant="contained" 
-              disabled={loading || !newPassword || !confirmPassword}
-            >
-              {loading ? 'Changing...' : 'Change Password'}
+            <Button onClick={() => setShowPasswordChange(false)} color="secondary">
+              Annuler
+            </Button>
+            <Button onClick={handlePasswordChange} variant="contained" color="primary" disabled={loading || !newPassword || !confirmPassword}>
+              {loading ? <CircularProgress size={18} color="inherit" /> : 'Changer le mot de passe'}
             </Button>
           </DialogActions>
         </Dialog>
       </Container>
     </ThemeRegistry>
-  );
+  )
 }

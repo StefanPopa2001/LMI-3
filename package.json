@@ -13,5 +13,8 @@
   "workspaces": [
     "backend",
     "frontend"
-  ]
+  ],
+  "dependencies": {
+    "lucide-react": "^0.544.0"
+  }
 }

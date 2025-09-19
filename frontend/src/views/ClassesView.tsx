@@ -165,7 +165,9 @@ const ClassesView: React.FC = () => {
   const [generateForm, setGenerateForm] = useState<GenerateSeancesData>({
     annee: new Date().getFullYear(),
     jourSemaine: 1,
-    heureDebut: '09:00'
+    heureDebut: '09:00',
+    dureeSeance: 60,
+    nombreSemaines: 10
   });
 
   const [editingSeance, setEditingSeance] = useState<Seance | null>(null);
@@ -262,12 +264,22 @@ const ClassesView: React.FC = () => {
       const classData = { ...classForm, semainesSeances: finalWeeks };
       
       const created = await classService.createClass(classData);
+      // Persist defaults after successful creation
+      persistClassDefaults({
+        jourSemaine: classForm.jourSemaine,
+        heureDebut: classForm.heureDebut,
+        dureeSeance: classForm.dureeSeance as number,
+        weekNumbers,
+        nextYearWeekNumbers
+      });
       // Auto-generate seances based on provided weeks
       try {
         await classService.generateSeances(created.class.id, {
           annee: new Date().getFullYear(),
           jourSemaine: classForm.jourSemaine || 1,
-          heureDebut: classForm.heureDebut || '09:00'
+          heureDebut: classForm.heureDebut || '09:00',
+          dureeSeance: classForm.dureeSeance as number,
+          nombreSemaines: 10
         });
         showSuccess('Classe créée et séances générées avec succès');
       } catch (genErr) {
@@ -514,7 +526,9 @@ const ClassesView: React.FC = () => {
     setGenerateForm({
       annee: new Date().getFullYear(),
       jourSemaine: classe.jourSemaine || 1,
-      heureDebut: classe.heureDebut || '09:00'
+      heureDebut: classe.heureDebut || '09:00',
+      dureeSeance: classe.dureeSeance || 60,
+      nombreSemaines: 10
     });
     setIsGenerateDialogOpen(true);
   };
@@ -586,6 +600,41 @@ const ClassesView: React.FC = () => {
     });
   };
 
+  const CLASS_FORM_STORAGE_KEY = 'classFormDefaultsV1';
+
+  // Load defaults on mount or when opening create dialog
+  useEffect(() => {
+    if (isCreateDialogOpen) {
+      try {
+        const raw = localStorage.getItem(CLASS_FORM_STORAGE_KEY);
+        if (raw) {
+          const saved = JSON.parse(raw);
+          setClassForm(prev => ({
+            ...prev,
+            jourSemaine: saved.jourSemaine ?? prev.jourSemaine,
+            heureDebut: saved.heureDebut ?? prev.heureDebut,
+            dureeSeance: saved.dureeSeance ?? prev.dureeSeance,
+            // weeks are entered via weekNumbers / nextYearWeekNumbers text fields
+          }));
+          if (saved.weekNumbers !== undefined) setWeekNumbers(saved.weekNumbers);
+          if (saved.nextYearWeekNumbers !== undefined) setNextYearWeekNumbers(saved.nextYearWeekNumbers);
+        }
+      } catch {}
+    }
+  }, [isCreateDialogOpen]);
+
+  // Persist after successful create
+  const persistClassDefaults = (data: { jourSemaine?: number; heureDebut?: string; dureeSeance?: number; weekNumbers?: string; nextYearWeekNumbers?: string; }) => {
+    const toStore = {
+      jourSemaine: data.jourSemaine ?? classForm.jourSemaine,
+      heureDebut: data.heureDebut ?? classForm.heureDebut,
+      dureeSeance: data.dureeSeance ?? classForm.dureeSeance,
+      weekNumbers: data.weekNumbers ?? weekNumbers,
+      nextYearWeekNumbers: data.nextYearWeekNumbers ?? nextYearWeekNumbers
+    };
+    try { localStorage.setItem(CLASS_FORM_STORAGE_KEY, JSON.stringify(toStore)); } catch {}
+  };
+
   if (loading) {
     return (
       <div>
@@ -602,7 +651,7 @@ const ClassesView: React.FC = () => {
   return (
     <div>
       <NavBar />
-      <Container maxWidth="xl" sx={{ py: 4, mt: 8 }}>
+  <Container maxWidth="xl" sx={{ py: 4, mt: 8 }}>
       {/* Header */}
       <Box display="flex" justifyContent="center" alignItems="center" mb={4}>
         <Typography variant="h1" component="h1" sx={{ textAlign: 'center', fontSize: '2.5rem', fontWeight: 'bold' }}>
@@ -2093,7 +2142,7 @@ const ClassesView: React.FC = () => {
                     )}
                     {selectedClass?.salle && (
                       <Box>
-                        <Typography variant="body2" color="#bdbdbd">Salle:</Typography>
+                                                                                             <Typography variant="body2" color="#bdbdbd">Salle:</Typography>
                         <Typography>{selectedClass.salle}</Typography>
                       </Box>
                     )}
@@ -2206,7 +2255,7 @@ const ClassesView: React.FC = () => {
   <DialogTitle sx={{ bgcolor: 'var(--color-bg-secondary)', color: 'var(--color-text-primary)', borderBottom: '1px solid var(--color-border-light)' }}>
           Créer une nouvelle classe
         </DialogTitle>
-  <DialogContent sx={{ bgcolor: 'var(--color-bg-primary)' }}>
+        <DialogContent sx={{ bgcolor: 'var(--color-bg-primary)' }}>
           <Box component="form" onSubmit={(e) => { e.preventDefault(); handleCreateClass(); }} sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
             <TextField
               label="Nom de la classe"
@@ -2431,10 +2480,11 @@ const ClassesView: React.FC = () => {
               label="Classe de récupération (cours du soir)"
             />
             
-            <Box display="flex" gap={2}>
+            <Box display="flex" gap={2} flexWrap="wrap">
               <FormControl 
-                fullWidth
                 sx={{
+                  minWidth: 180,
+                  flex: '1 1 180px',
                   '& .MuiInputBase-root': { bgcolor: '#2d2d2d', color: 'white' },
                   '& .MuiInputLabel-root': { color: '#bdbdbd' },
                   '& .MuiOutlinedInput-root': {
@@ -2444,725 +2494,29 @@ const ClassesView: React.FC = () => {
                   }
                 }}
               >
-                <InputLabel sx={{ color: '#bdbdbd' }}>Jour de la semaine</InputLabel>
+                <InputLabel sx={{ color: '#bdbdbd' }}>Jour</InputLabel>
                 <Select
                   value={classForm.jourSemaine}
-                  label="Jour de la semaine"
+                  label="Jour"
                   onChange={(e) => setClassForm(prev => ({ ...prev, jourSemaine: Number(e.target.value) }))}
                   sx={{ color: 'white' }}
                 >
-                  <MenuItem value={1} sx={{ bgcolor: '#2d2d2d', color: 'white', '&:hover': { bgcolor: '#3d3d3d' } }}>
-                    Lundi
-                  </MenuItem>
-                  <MenuItem value={2} sx={{ bgcolor: '#2d2d2d', color: 'white', '&:hover': { bgcolor: '#3d3d3d' } }}>
-                    Mardi
-                  </MenuItem>
-                  <MenuItem value={3} sx={{ bgcolor: '#2d2d2d', color: 'white', '&:hover': { bgcolor: '#3d3d3d' } }}>
-                    Mercredi
-                  </MenuItem>
-                  <MenuItem value={4} sx={{ bgcolor: '#2d2d2d', color: 'white', '&:hover': { bgcolor: '#3d3d3d' } }}>
-                    Jeudi
-                  </MenuItem>
-                  <MenuItem value={5} sx={{ bgcolor: '#2d2d2d', color: 'white', '&:hover': { bgcolor: '#3d3d3d' } }}>
-                    Vendredi
-                  </MenuItem>
-                  <MenuItem value={6} sx={{ bgcolor: '#2d2d2d', color: 'white', '&:hover': { bgcolor: '#3d3d3d' } }}>
-                    Samedi
-                  </MenuItem>
-                  <MenuItem value={7} sx={{ bgcolor: '#2d2d2d', color: 'white', '&:hover': { bgcolor: '#3d3d3d' } }}>
-                    Dimanche
-                  </MenuItem>
-                </Select>
-              </FormControl>
-              
-              <TextField
-                label="Heure de début"
-                type="text"
-                value={classForm.heureDebut}
-                onChange={(e) => setClassForm(prev => ({ ...prev, heureDebut: e.target.value }))}
-                inputProps={{ pattern: "([01]\\d|2[0-3]):([0-5]\\d)", placeholder: 'HH:MM' }}
-                helperText="Format 24h HH:MM"
-                fullWidth
-                sx={{
-                  '& .MuiInputBase-root': { bgcolor: '#2d2d2d', color: 'white' },
-                  '& .MuiInputLabel-root': { color: '#bdbdbd' },
-                  '& .MuiOutlinedInput-root': {
-                    '& fieldset': { borderColor: '#444' },
-                    '&:hover fieldset': { borderColor: '#666' },
-                    '&.Mui-focused fieldset': { borderColor: '#90caf9' }
-                  }
-                }}
-              />
-            </Box>
-            
-            <Box display="flex" gap={2}>
-              <TextField
-                label={`Semaines ${new Date().getFullYear()} (1-52)`}
-                value={weekNumbers}
-                onChange={(e) => setWeekNumbers(e.target.value)}
-                placeholder="Ex: 1, 2, 3, 5, 6, 8"
-                helperText={`Numéros des semaines de ${new Date().getFullYear()} (1-52)`}
-                fullWidth
-                sx={{
-                  '& .MuiInputBase-root': { bgcolor: '#2d2d2d', color: 'white' },
-                  '& .MuiInputLabel-root': { color: '#bdbdbd' },
-                  '& .MuiFormHelperText-root': { color: '#bdbdbd' },
-                  '& .MuiOutlinedInput-root': {
-                    '& fieldset': { borderColor: '#444' },
-                    '&:hover fieldset': { borderColor: '#666' },
-                    '&.Mui-focused fieldset': { borderColor: '#90caf9' }
-                  }
-                }}
-              />
-              <TextField
-                label={`Semaines ${new Date().getFullYear() + 1} (1-52)`}
-                value={nextYearWeekNumbers}
-                onChange={(e) => setNextYearWeekNumbers(e.target.value)}
-                placeholder="Ex: 10, 15, 20"
-                helperText={`Numéros des semaines de ${new Date().getFullYear() + 1} (saisir 1-52, sera converti automatiquement)`}
-                fullWidth
-                sx={{
-                  '& .MuiInputBase-root': { bgcolor: '#2d2d2d', color: 'white' },
-                  '& .MuiInputLabel-root': { color: '#bdbdbd' },
-                  '& .MuiFormHelperText-root': { color: '#bdbdbd' },
-                  '& .MuiOutlinedInput-root': {
-                    '& fieldset': { borderColor: '#444' },
-                    '&:hover fieldset': { borderColor: '#666' },
-                    '&.Mui-focused fieldset': { borderColor: '#90caf9' }
-                  }
-                }}
-              />
-            </Box>
-            
-            {/* Week preview removed as requested */}
-            
-            <Box>
-              <Autocomplete
-                multiple
-                id="students-autocomplete-create"
-                options={students}
-                getOptionLabel={(option) => `${option.prenom} ${option.nom} (ID: ${option.id})`}
-                value={students.filter(student => classForm.eleveIds?.includes(student.id))}
-                onChange={(event, newValue) => {
-                  setClassForm(prev => ({
-                    ...prev,
-                    eleveIds: newValue.map(student => student.id)
-                  }));
-                }}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    label="Sélectionner les élèves"
-                    placeholder="Rechercher un élève..."
-                    sx={{
-                      '& .MuiInputBase-root': { bgcolor: '#2d2d2d', color: 'white' },
-                      '& .MuiInputLabel-root': { color: '#bdbdbd' },
-                      '& .MuiOutlinedInput-root': {
-                        '& fieldset': { borderColor: '#444' },
-                        '&:hover fieldset': { borderColor: '#666' },
-                        '&.Mui-focused fieldset': { borderColor: '#90caf9' }
-                      }
-                    }}
-                  />
-                )}
-                renderTags={(value, getTagProps) =>
-                  value.map((option, index) => {
-                    const tagProps = getTagProps({ index });
-                    return (
-                      <Chip
-                        {...tagProps}
-                        key={option.id}
-                        label={`${option.prenom} ${option.nom}`}
-                        onDelete={() => {
-                          const newEleveIds = classForm.eleveIds?.filter(id => id !== option.id) || [];
-                          setClassForm(prev => ({ ...prev, eleveIds: newEleveIds }));
-                        }}
-                        sx={{ bgcolor: '#1976d2', color: 'white' }}
-                      />
-                    );
-                  })
-                }
-                sx={{ 
-                  mb: 2,
-                  '& .MuiAutocomplete-paper': { bgcolor: '#2d2d2d', color: 'white' },
-                  '& .MuiAutocomplete-option': { 
-                    bgcolor: '#2d2d2d', 
-                    color: 'white',
-                    '&:hover': { bgcolor: '#3d3d3d' }
-                  }
-                }}
-              />
-              
-              {classForm.eleveIds && classForm.eleveIds.length > 0 && (
-                <Typography variant="body2" sx={{ color: '#bdbdbd' }}>
-                  {classForm.eleveIds.length} élève(s) sélectionné(s)
-                </Typography>
-              )}
-            </Box>
-            
-            <Box display="flex" justifyContent="flex-end" gap={1} pt={2}>
-              <Button 
-                onClick={() => setIsCreateDialogOpen(false)}
-                sx={{ color: '#bdbdbd', '&:hover': { bgcolor: '#3d3d3d' } }}
-              >
-                Annuler
-              </Button>
-              <Button 
-                type="submit"
-                variant="contained" 
-                sx={{ bgcolor: 'var(--color-primary-500)', '&:hover': { bgcolor: 'var(--color-primary-600)' } }}
-              >
-                Créer la classe
-              </Button>
-            </Box>
-          </Box>
-        </DialogContent>
-      </Dialog>
-
-
-
-      {/* Edit Class Dialog */}
-      <Dialog 
-        open={isEditDialogOpen} 
-        onClose={() => setIsEditDialogOpen(false)}
-        maxWidth="md"
-        fullWidth
-        PaperProps={{
-          sx: {
-            bgcolor: '#1e1e1e',
-            color: 'white'
-          }
-        }}
-      >
-        <DialogTitle sx={{ bgcolor: '#2d2d2d', color: 'white', borderBottom: '1px solid #444' }}>
-          Modifier la classe
-        </DialogTitle>
-        <DialogContent sx={{ bgcolor: '#1e1e1e' }}>
-          <Box component="form" onSubmit={(e) => { e.preventDefault(); handleUpdateClass(); }} sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-            <TextField
-              label="Nom de la classe"
-              value={classForm.nom}
-              onChange={(e) => setClassForm(prev => ({ ...prev, nom: e.target.value }))}
-              placeholder="Ex: Programmation Python Débutant"
-              fullWidth
-              sx={{
-                '& .MuiInputBase-root': { bgcolor: '#2d2d2d', color: 'white' },
-                '& .MuiInputLabel-root': { color: '#bdbdbd' },
-                '& .MuiOutlinedInput-root': {
-                  '& fieldset': { borderColor: '#444' },
-                  '&:hover fieldset': { borderColor: '#666' },
-                  '&.Mui-focused fieldset': { borderColor: '#90caf9' }
-                }
-              }}
-            />
-            
-            <TextField
-              label="Description"
-              value={classForm.description}
-              onChange={(e) => setClassForm(prev => ({ ...prev, description: e.target.value }))}
-              placeholder="Description de la classe..."
-              multiline
-              rows={3}
-              fullWidth
-              sx={{
-                '& .MuiInputBase-root': { bgcolor: '#2d2d2d', color: 'white' },
-                '& .MuiInputLabel-root': { color: '#bdbdbd' },
-                '& .MuiOutlinedInput-root': {
-                  '& fieldset': { borderColor: '#444' },
-                  '&:hover fieldset': { borderColor: '#666' },
-                  '&.Mui-focused fieldset': { borderColor: '#90caf9' }
-                }
-              }}
-            />
-            
-            <FormControl 
-              fullWidth
-              sx={{
-                '& .MuiInputBase-root': { bgcolor: '#2d2d2d', color: 'white' },
-                '& .MuiInputLabel-root': { color: '#bdbdbd' },
-                '& .MuiOutlinedInput-root': {
-                  '& fieldset': { borderColor: '#444' },
-                  '&:hover fieldset': { borderColor: '#666' },
-                  '&.Mui-focused fieldset': { borderColor: '#90caf9' }
-                }
-              }}
-            >
-              <InputLabel sx={{ color: '#bdbdbd' }}>Niveau</InputLabel>
-              <Select
-                value={classForm.level}
-                label="Niveau"
-                onChange={(e) => setClassForm(prev => ({ ...prev, level: e.target.value }))}
-                sx={{ color: 'white' }}
-              >
-                <MenuItem value="" sx={{ bgcolor: '#2d2d2d', color: 'white', '&:hover': { bgcolor: '#3d3d3d' } }}>
-                  <em>Aucun</em>
-                </MenuItem>
-                {levelSettings.filter(setting => setting.active).map(setting => (
-                  <MenuItem key={setting.id} value={setting.value} sx={{ bgcolor: '#2d2d2d', color: 'white', '&:hover': { bgcolor: '#3d3d3d' } }}>
-                    {setting.label || setting.value}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            
-            <FormControl 
-              fullWidth
-              sx={{
-                '& .MuiInputBase-root': { bgcolor: '#2d2d2d', color: 'white' },
-                '& .MuiInputLabel-root': { color: '#bdbdbd' },
-                '& .MuiOutlinedInput-root': {
-                  '& fieldset': { borderColor: '#444' },
-                  '&:hover fieldset': { borderColor: '#666' },
-                  '&.Mui-focused fieldset': { borderColor: '#90caf9' }
-                }
-              }}
-            >
-              <InputLabel sx={{ color: '#bdbdbd' }}>Type de cours</InputLabel>
-              <Select
-                value={classForm.typeCours}
-                label="Type de cours"
-                onChange={(e) => setClassForm(prev => ({ ...prev, typeCours: e.target.value }))}
-                sx={{ color: 'white' }}
-              >
-                <MenuItem value="" sx={{ bgcolor: '#2d2d2d', color: 'white', '&:hover': { bgcolor: '#3d3d3d' } }}>
-                  <em>Aucun</em>
-                </MenuItem>
-                {typeCoursSettings.filter(setting => setting.active).map(setting => (
-                  <MenuItem key={setting.id} value={setting.value} sx={{ bgcolor: '#2d2d2d', color: 'white', '&:hover': { bgcolor: '#3d3d3d' } }}>
-                    {setting.label || setting.value}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            
-            <FormControl 
-              fullWidth
-              sx={{
-                '& .MuiInputBase-root': { bgcolor: '#2d2d2d', color: 'white' },
-                '& .MuiInputLabel-root': { color: '#bdbdbd' },
-                '& .MuiOutlinedInput-root': {
-                  '& fieldset': { borderColor: '#444' },
-                  '&:hover fieldset': { borderColor: '#666' },
-                  '&.Mui-focused fieldset': { borderColor: '#90caf9' }
-                }
-              }}
-            >
-              <InputLabel sx={{ color: '#bdbdbd' }}>Emplacement</InputLabel>
-              <Select
-                value={classForm.location}
-                label="Emplacement"
-                onChange={(e) => setClassForm(prev => ({ ...prev, location: e.target.value }))}
-                sx={{ color: 'white' }}
-              >
-                <MenuItem value="" sx={{ bgcolor: '#2d2d2d', color: 'white', '&:hover': { bgcolor: '#3d3d3d' } }}>
-                  <em>Aucun</em>
-                </MenuItem>
-                {locationSettings.filter(setting => setting.active).map(setting => (
-                  <MenuItem key={setting.id} value={setting.value} sx={{ bgcolor: '#2d2d2d', color: 'white', '&:hover': { bgcolor: '#3d3d3d' } }}>
-                    {setting.label || setting.value}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            
-            <FormControl 
-              fullWidth
-              sx={{
-                '& .MuiInputBase-root': { bgcolor: '#2d2d2d', color: 'white' },
-                '& .MuiInputLabel-root': { color: '#bdbdbd' },
-                '& .MuiOutlinedInput-root': {
-                  '& fieldset': { borderColor: '#444' },
-                  '&:hover fieldset': { borderColor: '#666' },
-                  '&.Mui-focused fieldset': { borderColor: '#90caf9' }
-                }
-              }}
-            >
-              <InputLabel sx={{ color: '#bdbdbd' }}>Salle</InputLabel>
-              <Select
-                value={classForm.salle}
-                label="Salle"
-                onChange={(e) => setClassForm(prev => ({ ...prev, salle: e.target.value }))}
-                sx={{ color: 'white' }}
-              >
-                <MenuItem value="" sx={{ bgcolor: '#2d2d2d', color: 'white', '&:hover': { bgcolor: '#3d3d3d' } }}>
-                  <em>Aucun</em>
-                </MenuItem>
-                {salleSettings.filter(setting => setting.active).map(setting => (
-                  <MenuItem key={setting.id} value={setting.value} sx={{ bgcolor: '#2d2d2d', color: 'white', '&:hover': { bgcolor: '#3d3d3d' } }}>
-                    {setting.label || setting.value}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            
-            <FormControl 
-              fullWidth
-              sx={{
-                '& .MuiInputBase-root': { bgcolor: '#2d2d2d', color: 'white' },
-                '& .MuiInputLabel-root': { color: '#bdbdbd' },
-                '& .MuiOutlinedInput-root': {
-                  '& fieldset': { borderColor: '#444' },
-                  '&:hover fieldset': { borderColor: '#666' },
-                  '&.Mui-focused fieldset': { borderColor: '#90caf9' }
-                }
-              }}
-            >
-              <InputLabel sx={{ color: '#bdbdbd' }}>Enseignant</InputLabel>
-              <Select
-                value={classForm.teacherId}
-                label="Enseignant"
-                onChange={(e) => setClassForm(prev => ({ ...prev, teacherId: Number(e.target.value) }))}
-                sx={{ color: 'white' }}
-              >
-                {teachers.map(teacher => (
-                  <MenuItem key={teacher.id} value={teacher.id} sx={{ bgcolor: '#2d2d2d', color: 'white', '&:hover': { bgcolor: '#3d3d3d' } }}>
-                    {teacher.prenom} {teacher.nom}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            
-            <TextField
-              label="Durée des séances (minutes)"
-              type="number"
-              value={classForm.dureeSeance}
-              onChange={(e) => setClassForm(prev => ({ ...prev, dureeSeance: parseInt(e.target.value) }))}
-              inputProps={{ min: 1 }}
-              fullWidth
-              sx={{
-                '& .MuiInputBase-root': { bgcolor: '#2d2d2d', color: 'white' },
-                '& .MuiInputLabel-root': { color: '#bdbdbd' },
-                '& .MuiOutlinedInput-root': {
-                  '& fieldset': { borderColor: '#444' },
-                  '&:hover fieldset': { borderColor: '#666' },
-                  '&.Mui-focused fieldset': { borderColor: '#90caf9' }
-                }
-              }}
-            />
-
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={!!classForm.rrPossibles}
-                  onChange={(e) => setClassForm(prev => ({ ...prev, rrPossibles: e.target.checked }))}
-                  sx={{ color: '#bdbdbd' }}
-                />
-              }
-              label="RR possibles"
-            />
-
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={!!classForm.isRecuperation}
-                  onChange={(e) => setClassForm(prev => ({ ...prev, isRecuperation: e.target.checked }))}
-                  sx={{ color: '#bdbdbd' }}
-                />
-              }
-              label="Classe de récupération (cours du soir)"
-            />
-            
-            <Box display="flex" gap={2}>
-              <FormControl 
-                fullWidth
-                sx={{
-                  '& .MuiInputBase-root': { bgcolor: '#2d2d2d', color: 'white' },
-                  '& .MuiInputLabel-root': { color: '#bdbdbd' },
-                  '& .MuiOutlinedInput-root': {
-                    '& fieldset': { borderColor: '#444' },
-                    '&:hover fieldset': { borderColor: '#666' },
-                    '&.Mui-focused fieldset': { borderColor: '#90caf9' }
-                  }
-                }}
-              >
-                <InputLabel sx={{ color: '#bdbdbd' }}>Jour de la semaine</InputLabel>
-                <Select
-                  value={classForm.jourSemaine}
-                  label="Jour de la semaine"
-                  onChange={(e) => setClassForm(prev => ({ ...prev, jourSemaine: Number(e.target.value) }))}
-                  sx={{ color: 'white' }}
-                >
-                  <MenuItem value={1} sx={{ bgcolor: '#2d2d2d', color: 'white', '&:hover': { bgcolor: '#3d3d3d' } }}>
-                    Lundi
-                  </MenuItem>
-                  <MenuItem value={2} sx={{ bgcolor: '#2d2d2d', color: 'white', '&:hover': { bgcolor: '#3d3d3d' } }}>
-                    Mardi
-                  </MenuItem>
-                  <MenuItem value={3} sx={{ bgcolor: '#2d2d2d', color: 'white', '&:hover': { bgcolor: '#3d3d3d' } }}>
-                    Mercredi
-                  </MenuItem>
-                  <MenuItem value={4} sx={{ bgcolor: '#2d2d2d', color: 'white', '&:hover': { bgcolor: '#3d3d3d' } }}>
-                    Jeudi
-                  </MenuItem>
-                  <MenuItem value={5} sx={{ bgcolor: '#2d2d2d', color: 'white', '&:hover': { bgcolor: '#3d3d3d' } }}>
-                    Vendredi
-                  </MenuItem>
-                  <MenuItem value={6} sx={{ bgcolor: '#2d2d2d', color: 'white', '&:hover': { bgcolor: '#3d3d3d' } }}>
-                    Samedi
-                  </MenuItem>
-                  <MenuItem value={7} sx={{ bgcolor: '#2d2d2d', color: 'white', '&:hover': { bgcolor: '#3d3d3d' } }}>
-                    Dimanche
-                  </MenuItem>
-                </Select>
-              </FormControl>
-              
-              <TextField
-                label="Heure de début"
-                type="text"
-                value={classForm.heureDebut}
-                onChange={(e) => setClassForm(prev => ({ ...prev, heureDebut: e.target.value }))}
-                inputProps={{ pattern: "([01]\\d|2[0-3]):([0-5]\\d)", placeholder: 'HH:MM' }}
-                helperText="Format 24h HH:MM"
-                fullWidth
-                sx={{
-                  '& .MuiInputBase-root': { bgcolor: '#2d2d2d', color: 'white' },
-                  '& .MuiInputLabel-root': { color: '#bdbdbd' },
-                  '& .MuiOutlinedInput-root': {
-                    '& fieldset': { borderColor: '#444' },
-                    '&:hover fieldset': { borderColor: '#666' },
-                    '&.Mui-focused fieldset': { borderColor: '#90caf9' }
-                  }
-                }}
-              />
-            </Box>
-            
-            <Box display="flex" gap={2}>
-              <TextField
-                label={`Semaines ${new Date().getFullYear()} (1-52)`}
-                value={weekNumbers}
-                onChange={(e) => setWeekNumbers(e.target.value)}
-                placeholder="Ex: 1, 2, 3, 5, 6, 8"
-                helperText={`Numéros des semaines de ${new Date().getFullYear()} (1-52)`}
-                fullWidth
-                sx={{
-                  '& .MuiInputBase-root': { bgcolor: '#2d2d2d', color: 'white' },
-                  '& .MuiInputLabel-root': { color: '#bdbdbd' },
-                  '& .MuiFormHelperText-root': { color: '#bdbdbd' },
-                  '& .MuiOutlinedInput-root': {
-                    '& fieldset': { borderColor: '#444' },
-                    '&:hover fieldset': { borderColor: '#666' },
-                    '&.Mui-focused fieldset': { borderColor: '#90caf9' }
-                  }
-                }}
-              />
-              <TextField
-                label={`Semaines ${new Date().getFullYear() + 1} (1-52)`}
-                value={nextYearWeekNumbers}
-                onChange={(e) => setNextYearWeekNumbers(e.target.value)}
-                placeholder="Ex: 10, 15, 20"
-                helperText={`Numéros des semaines de ${new Date().getFullYear() + 1} (saisir 1-52, sera converti automatiquement)`}
-                fullWidth
-                sx={{
-                  '& .MuiInputBase-root': { bgcolor: '#2d2d2d', color: 'white' },
-                  '& .MuiInputLabel-root': { color: '#bdbdbd' },
-                  '& .MuiFormHelperText-root': { color: '#bdbdbd' },
-                  '& .MuiOutlinedInput-root': {
-                    '& fieldset': { borderColor: '#444' },
-                    '&:hover fieldset': { borderColor: '#666' },
-                    '&.Mui-focused fieldset': { borderColor: '#90caf9' }
-                  }
-                }}
-              />
-            </Box>
-            
-            {/* Week preview removed as requested */}
-            
-            <Box>
-              <Autocomplete
-                multiple
-                id="students-autocomplete-edit"
-                options={students}
-                getOptionLabel={(option) => `${option.prenom} ${option.nom} (ID: ${option.id})`}
-                value={students.filter(student => classForm.eleveIds?.includes(student.id))}
-                onChange={(event, newValue) => {
-                  setClassForm(prev => ({
-                    ...prev,
-                    eleveIds: newValue.map(student => student.id)
-                  }));
-                }}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    label="Sélectionner les élèves"
-                    placeholder="Rechercher un élève..."
-                    sx={{
-                      '& .MuiInputBase-root': { bgcolor: '#2d2d2d', color: 'white' },
-                      '& .MuiInputLabel-root': { color: '#bdbdbd' },
-                      '& .MuiOutlinedInput-root': {
-                        '& fieldset': { borderColor: '#444' },
-                        '&:hover fieldset': { borderColor: '#666' },
-                        '&.Mui-focused fieldset': { borderColor: '#90caf9' }
-                      }
-                    }}
-                  />
-                )}
-                renderTags={(value, getTagProps) =>
-                  value.map((option, index) => {
-                    const tagProps = getTagProps({ index });
-                    return (
-                      <Chip
-                        {...tagProps}
-                        key={option.id}
-                        label={`${option.prenom} ${option.nom}`}
-                        onDelete={() => {
-                          const newEleveIds = classForm.eleveIds?.filter(id => id !== option.id) || [];
-                          setClassForm(prev => ({ ...prev, eleveIds: newEleveIds }));
-                        }}
-                        sx={{ bgcolor: '#1976d2', color: 'white' }}
-                      />
-                    );
-                  })
-                }
-                sx={{ 
-                  mb: 2,
-                  '& .MuiAutocomplete-paper': { bgcolor: '#2d2d2d', color: 'white' },
-                  '& .MuiAutocomplete-option': { 
-                    bgcolor: '#2d2d2d', 
-                    color: 'white',
-                    '&:hover': { bgcolor: '#3d3d3d' }
-                  }
-                }}
-              />
-              
-              {classForm.eleveIds && classForm.eleveIds.length > 0 && (
-                <Typography variant="body2" sx={{ color: '#bdbdbd' }}>
-                  {classForm.eleveIds.length} élève(s) sélectionné(s)
-                </Typography>
-              )}
-            </Box>
-            
-            <Box display="flex" justifyContent="flex-end" gap={1} pt={2}>
-              <Button 
-                onClick={() => setIsEditDialogOpen(false)}
-                sx={{ color: '#bdbdbd', '&:hover': { bgcolor: '#3d3d3d' } }}
-              >
-                Annuler
-              </Button>
-              <Button 
-                type="submit"
-                variant="contained" 
-                sx={{ bgcolor: '#1976d2', '&:hover': { bgcolor: '#1565c0' } }}
-              >
-                Mettre à jour
-              </Button>
-            </Box>
-          </Box>
-        </DialogContent>
-      </Dialog>
-
-      {/* Seance Dialog */}
-      <Dialog 
-        open={isSeanceDialogOpen} 
-        onClose={() => setIsSeanceDialogOpen(false)}
-        maxWidth="sm"
-        fullWidth
-        PaperProps={{
-          sx: {
-            bgcolor: '#1e1e1e',
-            color: 'white'
-          }
-        }}
-      >
-        <DialogTitle sx={{ bgcolor: '#2d2d2d', color: 'white', borderBottom: '1px solid #444' }}>
-          {editingSeance ? 'Modifier la séance' : 'Créer une nouvelle séance'}
-        </DialogTitle>
-        <DialogContent sx={{ bgcolor: '#1e1e1e' }}>
-          <Box component="form" onSubmit={(e) => { e.preventDefault(); editingSeance ? handleUpdateSeance() : handleCreateSeance(); }} sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-            <TextField
-              label="Date et heure"
-              type="datetime-local"
-              value={seanceForm.dateHeure}
-              onChange={(e) => setSeanceForm(prev => ({ ...prev, dateHeure: e.target.value }))}
-              InputLabelProps={{ shrink: true }}
-              fullWidth
-              sx={{
-                '& .MuiInputBase-root': { bgcolor: '#2d2d2d', color: 'white' },
-                '& .MuiInputLabel-root': { color: '#bdbdbd' },
-                '& .MuiOutlinedInput-root': {
-                  '& fieldset': { borderColor: '#444' },
-                  '&:hover fieldset': { borderColor: '#666' },
-                  '&.Mui-focused fieldset': { borderColor: '#90caf9' }
-                }
-              }}
-            />
-            
-            <TextField
-              label="Durée (minutes)"
-              type="number"
-              value={seanceForm.duree}
-              onChange={(e) => setSeanceForm(prev => ({ ...prev, duree: parseInt(e.target.value) }))}
-              inputProps={{ min: 1 }}
-              fullWidth
-              sx={{
-                '& .MuiInputBase-root': { bgcolor: '#2d2d2d', color: 'white' },
-                '& .MuiInputLabel-root': { color: '#bdbdbd' },
-                '& .MuiOutlinedInput-root': {
-                  '& fieldset': { borderColor: '#444' },
-                  '&:hover fieldset': { borderColor: '#666' },
-                  '&.Mui-focused fieldset': { borderColor: '#90caf9' }
-                }
-              }}
-            />
-            
-            <TextField
-              label="Notes"
-              value={seanceForm.notes}
-              onChange={(e) => setSeanceForm(prev => ({ ...prev, notes: e.target.value }))}
-              placeholder="Notes sur la séance..."
-              multiline
-              rows={3}
-              fullWidth
-              sx={{
-                '& .MuiInputBase-root': { bgcolor: '#2d2d2d', color: 'white' },
-                '& .MuiInputLabel-root': { color: '#bdbdbd' },
-                '& .MuiOutlinedInput-root': {
-                  '& fieldset': { borderColor: '#444' },
-                  '&:hover fieldset': { borderColor: '#666' },
-                  '&.Mui-focused fieldset': { borderColor: '#90caf9' }
-                }
-              }}
-            />
-
-            <Box display="flex" gap={2}>
-              <FormControl 
-                fullWidth
-                sx={{
-                  '& .MuiInputBase-root': { bgcolor: '#2d2d2d', color: 'white' },
-                  '& .MuiInputLabel-root': { color: '#bdbdbd' },
-                  '& .MuiOutlinedInput-root': {
-                    '& fieldset': { borderColor: '#444' },
-                    '&:hover fieldset': { borderColor: '#666' },
-                    '&.Mui-focused fieldset': { borderColor: '#90caf9' }
-                  }
-                }}
-              >
-                <InputLabel sx={{ color: '#bdbdbd' }}>Enseignant présent</InputLabel>
-                <Select
-                  value={seanceForm.presentTeacherId != null ? String(seanceForm.presentTeacherId) : ''}
-                  label="Enseignant présent"
-                  onChange={(e) => {
-                    const val = e.target.value as string;
-                    setSeanceForm(prev => ({ ...prev, presentTeacherId: val === '' ? undefined : Number(val) }));
-                  }}
-                  sx={{ color: 'white' }}
-                >
-                  <MenuItem value="" sx={{ bgcolor: '#2d2d2d', color: 'white' }}><em>Non spécifié</em></MenuItem>
-                  {teachers.map(teacher => (
-                    <MenuItem key={teacher.id} value={String(teacher.id)} sx={{ bgcolor: '#2d2d2d', color: 'white', '&:hover': { bgcolor: '#3d3d3d' } }}>
-                      {teacher.prenom} {teacher.nom}
+                  {[1,2,3,4,5,6,0].map(d => (
+                    <MenuItem key={d} value={d} sx={{ bgcolor: '#2d2d2d', color: 'white', '&:hover': { bgcolor: '#3d3d3d' } }}>
+                      {['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'][d === 0 ? 0 : d] /* index mapping */}
                     </MenuItem>
                   ))}
                 </Select>
               </FormControl>
 
               <TextField
-                label="Numéro de semaine"
-                type="number"
-                value={seanceForm.weekNumber ?? ''}
-                onChange={(e) => setSeanceForm(prev => ({ ...prev, weekNumber: e.target.value === '' ? undefined : parseInt(e.target.value) }))}
-                inputProps={{ min: 1 }}
-                fullWidth
+                label="Heure début (HH:MM)"
+                value={classForm.heureDebut}
+                onChange={(e) => setClassForm(prev => ({ ...prev, heureDebut: e.target.value }))}
+                placeholder="09:00"
                 sx={{
+                  minWidth: 160,
+                  flex: '1 1 140px',
                   '& .MuiInputBase-root': { bgcolor: '#2d2d2d', color: 'white' },
                   '& .MuiInputLabel-root': { color: '#bdbdbd' },
                   '& .MuiOutlinedInput-root': {
@@ -3172,228 +2526,94 @@ const ClassesView: React.FC = () => {
                   }
                 }}
               />
+
+              <TextField
+                label="Semaines (année courante)"
+                placeholder="1,2,3,5,12"
+                helperText="Liste séparée par des virgules (1-52)"
+                value={weekNumbers}
+                onChange={(e) => setWeekNumbers(e.target.value)}
+                sx={{
+                  flex: '2 1 300px',
+                  '& .MuiInputBase-root': { bgcolor: '#2d2d2d', color: 'white' },
+                  '& .MuiInputLabel-root': { color: '#bdbdbd' },
+                  '& .MuiFormHelperText-root': { color: '#bdbdbd' },
+                  '& .MuiOutlinedInput-root': {
+                    '& fieldset': { borderColor: '#444' },
+                    '&:hover fieldset': { borderColor: '#666' },
+                    '&.Mui-focused fieldset': { borderColor: '#90caf9' }
+                  }
+                }}
+              />
+
+              <TextField
+                label="Semaines (année suivante)"
+                placeholder="1,2,3"
+                helperText="Optionnel - semaines de l'année prochaine"
+                value={nextYearWeekNumbers}
+                onChange={(e) => setNextYearWeekNumbers(e.target.value)}
+                sx={{
+                  flex: '2 1 300px',
+                  '& .MuiInputBase-root': { bgcolor: '#2d2d2d', color: 'white' },
+                  '& .MuiInputLabel-root': { color: '#bdbdbd' },
+                  '& .MuiFormHelperText-root': { color: '#bdbdbd' },
+                  '& .MuiOutlinedInput-root': {
+                    '& fieldset': { borderColor: '#444' },
+                    '&:hover fieldset': { borderColor: '#666' },
+                    '&.Mui-focused fieldset': { borderColor: '#90caf9' }
+                  }
+                }}
+              />
+
+              <Autocomplete
+                multiple
+                options={students}
+                value={students.filter(s => (classForm.eleveIds || []).includes(s.id))}
+                onChange={(_, newValue) => {
+                  setClassForm(prev => ({ ...prev, eleveIds: newValue.map(v => v.id) }));
+                }}
+                disableCloseOnSelect
+                getOptionLabel={(o) => `${o.prenom} ${o.nom}`}
+                isOptionEqualToValue={(o, v) => o.id === v.id}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Élèves"
+                    placeholder="Sélectionner des élèves"
+                    sx={{
+                      '& .MuiInputBase-root': { bgcolor: '#2d2d2d', color: 'white' },
+                      '& .MuiInputLabel-root': { color: '#bdbdbd' },
+                      '& .MuiOutlinedInput-root': {
+                        '& fieldset': { borderColor: '#444' },
+                        '&:hover fieldset': { borderColor: '#666' },
+                        '&.Mui-focused fieldset': { borderColor: '#90caf9' }
+                      }
+                    }}
+                  />
+                )}
+                sx={{
+                  flex: '1 1 400px',
+                  '& .MuiChip-root': { bgcolor: '#1976d2', color: 'white' }
+                }}
+              />
             </Box>
-            
-            <Box display="flex" justifyContent="flex-end" gap={1} pt={2}>
-              <Button 
-                onClick={() => setIsSeanceDialogOpen(false)}
-                sx={{ color: '#bdbdbd', '&:hover': { bgcolor: '#3d3d3d' } }}
-              >
-                Annuler
-              </Button>
-              <Button 
+
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 2 }}>
+              <Button
+                onClick={() => setIsCreateDialogOpen(false)}
+                variant="outlined"
+                sx={{ borderColor: '#444', color: 'white', '&:hover': { borderColor: '#666', bgcolor: '#2a2a2a' } }}
+              >Annuler</Button>
+              <Button
                 type="submit"
-                variant="contained" 
+                variant="contained"
                 sx={{ bgcolor: '#1976d2', '&:hover': { bgcolor: '#1565c0' } }}
-              >
-                {editingSeance ? 'Mettre à jour' : 'Créer'}
-              </Button>
+              >Créer</Button>
             </Box>
-          </Box>
+          </Box>{/* end create class form */}
         </DialogContent>
       </Dialog>
-
-      {/* Generate Seances Dialog */}
-      <Dialog 
-        open={isGenerateDialogOpen} 
-        onClose={() => setIsGenerateDialogOpen(false)}
-        maxWidth="sm"
-        fullWidth
-        PaperProps={{
-          sx: {
-            bgcolor: '#1e1e1e',
-            color: 'white'
-          }
-        }}
-      >
-        <DialogTitle sx={{ bgcolor: '#2d2d2d', color: 'white', borderBottom: '1px solid #444' }}>
-          Générer des séances automatiquement
-        </DialogTitle>
-        <DialogContent sx={{ bgcolor: '#1e1e1e' }}>
-          <Box component="form" onSubmit={(e) => { e.preventDefault(); handleGenerateSeances(); }} sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-            <TextField
-              label="Année"
-              type="number"
-              value={generateForm.annee}
-              onChange={(e) => setGenerateForm(prev => ({ ...prev, annee: parseInt(e.target.value) }))}
-              inputProps={{ min: 2020, max: 2030 }}
-              fullWidth
-              sx={{
-                '& .MuiInputBase-root': { bgcolor: '#2d2d2d', color: 'white' },
-                '& .MuiInputLabel-root': { color: '#bdbdbd' },
-                '& .MuiOutlinedInput-root': {
-                  '& fieldset': { borderColor: '#444' },
-                  '&:hover fieldset': { borderColor: '#666' },
-                  '&.Mui-focused fieldset': { borderColor: '#90caf9' }
-                }
-              }}
-            />
-            
-            <FormControl 
-              fullWidth
-              sx={{
-                '& .MuiInputBase-root': { bgcolor: '#2d2d2d', color: 'white' },
-                '& .MuiInputLabel-root': { color: '#bdbdbd' },
-                '& .MuiOutlinedInput-root': {
-                  '& fieldset': { borderColor: '#444' },
-                  '&:hover fieldset': { borderColor: '#666' },
-                  '&.Mui-focused fieldset': { borderColor: '#90caf9' }
-                }
-              }}
-            >
-              <InputLabel sx={{ color: '#bdbdbd' }}>Jour de la semaine</InputLabel>
-              <Select
-                value={generateForm.jourSemaine}
-                label="Jour de la semaine"
-                onChange={(e) => setGenerateForm(prev => ({ ...prev, jourSemaine: Number(e.target.value) }))}
-                sx={{ color: 'white' }}
-              >
-                <MenuItem value={1} sx={{ bgcolor: '#2d2d2d', color: 'white', '&:hover': { bgcolor: '#3d3d3d' } }}>Lundi</MenuItem>
-                <MenuItem value={2} sx={{ bgcolor: '#2d2d2d', color: 'white', '&:hover': { bgcolor: '#3d3d3d' } }}>Mardi</MenuItem>
-                <MenuItem value={3} sx={{ bgcolor: '#2d2d2d', color: 'white', '&:hover': { bgcolor: '#3d3d3d' } }}>Mercredi</MenuItem>
-                <MenuItem value={4} sx={{ bgcolor: '#2d2d2d', color: 'white', '&:hover': { bgcolor: '#3d3d3d' } }}>Jeudi</MenuItem>
-                <MenuItem value={5} sx={{ bgcolor: '#2d2d2d', color: 'white', '&:hover': { bgcolor: '#3d3d3d' } }}>Vendredi</MenuItem>
-                <MenuItem value={6} sx={{ bgcolor: '#2d2d2d', color: 'white', '&:hover': { bgcolor: '#3d3d3d' } }}>Samedi</MenuItem>
-                <MenuItem value={0} sx={{ bgcolor: '#2d2d2d', color: 'white', '&:hover': { bgcolor: '#3d3d3d' } }}>Dimanche</MenuItem>
-              </Select>
-            </FormControl>
-            
-            <TextField
-              label="Heure de début"
-              type="text"
-              value={generateForm.heureDebut}
-              onChange={(e) => setGenerateForm(prev => ({ ...prev, heureDebut: e.target.value }))}
-              InputLabelProps={{ shrink: true }}
-              inputProps={{ pattern: "([01]\\d|2[0-3]):([0-5]\\d)", placeholder: 'HH:MM' }}
-              helperText="Format 24h HH:MM"
-              fullWidth
-              sx={{
-                '& .MuiInputBase-root': { bgcolor: '#2d2d2d', color: 'white' },
-                '& .MuiInputLabel-root': { color: '#bdbdbd' },
-                '& .MuiOutlinedInput-root': {
-                  '& fieldset': { borderColor: '#444' },
-                  '&:hover fieldset': { borderColor: '#666' },
-                  '&.Mui-focused fieldset': { borderColor: '#90caf9' }
-                }
-              }}
-            />
-            
-            <Typography variant="body2" sx={{ color: '#bdbdbd' }}>
-              Les séances seront générées pour toutes les semaines configurées dans la classe.
-            </Typography>
-            
-            <Box display="flex" justifyContent="flex-end" gap={1} pt={2}>
-              <Button 
-                onClick={() => setIsGenerateDialogOpen(false)}
-                sx={{ color: '#bdbdbd', '&:hover': { bgcolor: '#3d3d3d' } }}
-              >
-                Annuler
-              </Button>
-              <Button 
-                type="submit"
-                variant="contained" 
-                sx={{ bgcolor: '#1976d2', '&:hover': { bgcolor: '#1565c0' } }}
-              >
-                Générer les séances
-              </Button>
-            </Box>
-          </Box>
-        </DialogContent>
-      </Dialog>
-
-      {/* Attendance Modal */}
-      <Dialog 
-        open={isAttendanceModalOpen} 
-        onClose={() => setIsAttendanceModalOpen(false)}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle sx={{ bgcolor: '#2d2d2d', color: 'white', borderBottom: '1px solid #444' }}>
-          Gestion des présences - {selectedSeance && new Date(selectedSeance.dateHeure).toLocaleDateString('fr-FR')}
-        </DialogTitle>
-        <DialogContent sx={{ bgcolor: '#1e1e1e' }}>
-          {selectedSeance && selectedClass && (
-            <Box sx={{ pt: 2 }}>
-              <Typography variant="h6" sx={{ color: 'white', mb: 2 }}>
-                Classe: {selectedClass.nom}
-              </Typography>
-              
-              <Table sx={{ '& .MuiTableCell-root': { color: 'white', borderColor: '#444' } }}>
-                <TableHead>
-                  <TableRow sx={{ bgcolor: '#2d2d2d' }}>
-                    <TableCell>Nom</TableCell>
-                    <TableCell>Prénom</TableCell>
-                    <TableCell>Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {selectedClass.eleves.map(classeEleve => {
-                    const presence = attendanceData?.presences?.find((p: any) => p.eleveId === classeEleve.eleve.id);
-                    const currentStatus = presence?.statut || 'no_status';
-                    
-                    return (
-                      <TableRow key={classeEleve.id} sx={{ '&:hover': { bgcolor: '#2d2d2d' } }}>
-                        <TableCell>{classeEleve.eleve.nom}</TableCell>
-                        <TableCell>{classeEleve.eleve.prenom}</TableCell>
-                        <TableCell>
-                          <Box display="flex" gap={1} flexWrap="wrap">
-                            <Button
-                              size="small"
-                              variant={currentStatus === 'present' ? "contained" : "outlined"}
-                              color="success"
-                              onClick={() => handleUpdatePresence(selectedSeance!.id, classeEleve.eleve.id, 'present')}
-                              sx={{ minWidth: '80px' }}
-                            >
-                              ✓ Présent
-                            </Button>
-                            <Button
-                              size="small"
-                              variant={currentStatus === 'absent' ? "contained" : "outlined"}
-                              color="error"
-                              onClick={() => handleUpdatePresence(selectedSeance!.id, classeEleve.eleve.id, 'absent')}
-                              sx={{ minWidth: '80px' }}
-                            >
-                              ✗ Absent
-                            </Button>
-                            <Button
-                              size="small"
-                              variant={currentStatus === 'awaiting' ? "contained" : "outlined"}
-                              color="warning"
-                              onClick={() => handleUpdatePresence(selectedSeance!.id, classeEleve.eleve.id, 'awaiting')}
-                              sx={{ minWidth: '80px' }}
-                            >
-                              ⏳ Attente
-                            </Button>
-                            <Button
-                              size="small"
-                              variant={currentStatus === 'no_status' ? "contained" : "outlined"}
-                              onClick={() => handleUpdatePresence(selectedSeance!.id, classeEleve.eleve.id, 'no_status')}
-                              sx={{ minWidth: '80px' }}
-                            >
-                              ? Aucun
-                            </Button>
-                          </Box>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-              
-              <Box display="flex" justifyContent="flex-end" gap={1} pt={2}>
-                <Button 
-                  onClick={() => setIsAttendanceModalOpen(false)}
-                  sx={{ color: '#bdbdbd', '&:hover': { bgcolor: '#3d3d3d' } }}
-                >
-                  Fermer
-                </Button>
-              </Box>
-            </Box>
-          )}
-        </DialogContent>
-      </Dialog>
-
-    </Container>
+      </Container>
     </div>
   );
 };

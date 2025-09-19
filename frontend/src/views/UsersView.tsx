@@ -19,7 +19,8 @@ import {
   InputLabel,
   Tooltip,
   CircularProgress,
-  Chip
+  Chip,
+  Checkbox
 } from '@mui/material';
 import { DataGrid, GridColDef, GridToolbar, GridRenderCellParams } from '@mui/x-data-grid';
 import {
@@ -42,6 +43,7 @@ interface BulkUserData {
   nom: string;
   prenom: string;
   email: string;
+  codeitbryan?: string;
   GSM?: string;
   titre?: string;
   fonction?: string;
@@ -332,7 +334,7 @@ export default function UsersView() {
   // Simple grid data initializer
   const initializeImportGrid = () => {
   const empty = Array.from({ length: 20 }, () => ({
-      nom: '', prenom: '', email: '', GSM: '', titre: '', fonction: '', niveau: 0, admin: false, entreeFonction: ''
+      nom: '', prenom: '', email: '', codeitbryan: '', GSM: '', titre: '', fonction: '', niveau: 0, admin: false, entreeFonction: ''
     }));
     setImportData(empty);
   };
@@ -421,8 +423,8 @@ export default function UsersView() {
 
     for (const [index, userData] of dataToImport.entries()) {
       try {
-        // Generate random password and salt for new users
-        const tempPassword = Math.random().toString(36).slice(-8);
+        // Set hardcoded default password for new users
+        const tempPassword = 'BAZOU';
         const salt = Math.random().toString(36).slice(-16);
         const niveauNum = typeof (userData as any).niveau === 'string' ? parseInt((userData as any).niveau as any, 10) : (userData.niveau ?? 0);
         const entreeIso = userData.entreeFonction ? parseDateFlexible(userData.entreeFonction) : null;
@@ -431,6 +433,7 @@ export default function UsersView() {
           nom: userData.nom,
           prenom: userData.prenom,
           email: userData.email,
+          codeitbryan: userData.codeitbryan,
           GSM: userData.GSM,
           titre: userData.titre,
           fonction: userData.fonction,
@@ -478,6 +481,68 @@ export default function UsersView() {
     setImportData([]);
     setValidationErrors([]);
   };
+
+  const userColumns: GridColDef[] = useMemo(() => [
+    { field: 'id', headerName: 'ID', width: 80 },
+    {
+      field: 'nom', headerName: 'Nom', width: 160,
+      renderCell: (p: GridRenderCellParams) => isEditable ? (
+        <TextField size="small" value={p.value ?? ''} onChange={(e) => handleCellChange(p.row.id, 'nom', e.target.value)} />
+      ) : <span>{p.value}</span>
+    },
+    { field: 'prenom', headerName: 'Prénom', width: 160, renderCell: (p: GridRenderCellParams) => isEditable ? (
+        <TextField size="small" value={p.value ?? ''} onChange={(e) => handleCellChange(p.row.id, 'prenom', e.target.value)} />
+      ) : <span>{p.value}</span>
+    },
+    { field: 'email', headerName: 'Email', width: 240, renderCell: (p: GridRenderCellParams) => isEditable ? (
+        <TextField size="small" value={p.value ?? ''} onChange={(e) => handleCellChange(p.row.id, 'email', e.target.value)} />
+      ) : <span>{p.value}</span>
+    },
+    { field: 'codeitbryan', headerName: 'CodeItBryan', width: 200, renderCell: (p: GridRenderCellParams) => isEditable ? (
+        <TextField size="small" value={p.value ?? ''} onChange={(e) => handleCellChange(p.row.id, 'codeitbryan', e.target.value)} />
+      ) : <span>{p.value || '-'}</span>
+    },
+    { field: 'GSM', headerName: 'Téléphone', width: 150, renderCell: (p: GridRenderCellParams) => isEditable ? (
+        <TextField size="small" value={p.value ?? ''} onChange={(e) => handleCellChange(p.row.id, 'GSM', e.target.value)} />
+      ) : <span>{p.value || '-'}</span>
+    },
+    { field: 'titre', headerName: 'Titre', width: 140, renderCell: (p: GridRenderCellParams) => isEditable ? (
+        <TextField size="small" value={p.value ?? ''} onChange={(e) => handleCellChange(p.row.id, 'titre', e.target.value)} />
+      ) : <span>{p.value || '-'}</span>
+    },
+    { field: 'fonction', headerName: 'Fonction', width: 170, renderCell: (p: GridRenderCellParams) => isEditable ? (
+        <TextField size="small" value={p.value ?? ''} onChange={(e) => handleCellChange(p.row.id, 'fonction', e.target.value)} />
+      ) : <span>{p.value || '-'}</span>
+    },
+    { field: 'niveau', headerName: 'Niveau', width: 130, renderCell: (p: GridRenderCellParams) => isEditable ? (
+        <FormControl size="small" fullWidth>
+          <Select value={p.value || ''} onChange={(e) => handleCellChange(p.row.id, 'niveau', e.target.value)}>
+            <MenuItem value="Junior">Junior</MenuItem>
+            <MenuItem value="Medior">Medior</MenuItem>
+            <MenuItem value="Senior">Senior</MenuItem>
+          </Select>
+        </FormControl>
+      ) : <span>{p.value || '-'}</span>
+    },
+    { field: 'entreeFonction', headerName: "Date d'entrée", width: 150, sortable: false },
+    { field: 'actif', headerName: 'Actif', width: 110, sortable: false, renderCell: (params: GridRenderCellParams) => isEditable ? (
+        <Checkbox checked={params.value || false} onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleCellChange(params.row.id, 'actif', e.target.checked)} />
+      ) : <Chip label={params.value ? 'Actif' : 'Inactif'} color={params.value ? 'success' : 'error'} size="small" />
+    },
+    { field: 'mdpTemporaire', headerName: 'Mot de passe défini', width: 160, sortable: false, renderCell: (params: GridRenderCellParams) => (
+        <Chip label={params.value ? 'Temporaire' : 'Défini'} color={params.value ? 'warning' : 'success'} size="small" />
+      )
+    },
+    { field: 'admin', headerName: 'Rôle', width: 120, sortable: false, renderCell: (p: GridRenderCellParams) => isEditable ? (
+        <FormControl size="small" fullWidth>
+          <Select value={p.value || ''} onChange={(e) => handleCellChange(p.row.id, 'admin', e.target.value)}>
+            <MenuItem value="User">User</MenuItem>
+            <MenuItem value="Admin">Admin</MenuItem>
+          </Select>
+        </FormControl>
+      ) : <Chip label={p.value === 'Admin' ? 'Admin' : 'User'} color={p.value === 'Admin' ? 'secondary' : 'primary'} size="small" />
+    }
+  ], [isEditable]);
 
   if (!mounted) {
     return (
@@ -590,110 +655,29 @@ export default function UsersView() {
             <DataGrid
               rows={(isEditable ? draftUsers : tableData) as any[]}
               getRowId={(r: any) => r.id}
-              columns={[
-                { field: 'id', headerName: 'ID', width: 80 },
-                {
-                  field: 'nom', headerName: 'Nom', width: 160,
-                  renderCell: (p: GridRenderCellParams<any, any>) => (
-                    isEditable ? (
-                      <TextField size="small" value={p.value ?? ''} onChange={(e) => handleCellChange(p.row.id, 'nom', e.target.value)} />
-                    ) : <span>{p.value}</span>
-                  )
-                },
-                {
-                  field: 'prenom', headerName: 'Prénom', width: 160,
-                  renderCell: (p: GridRenderCellParams<any, any>) => (
-                    isEditable ? (
-                      <TextField size="small" value={p.value ?? ''} onChange={(e) => handleCellChange(p.row.id, 'prenom', e.target.value)} />
-                    ) : <span>{p.value}</span>
-                  )
-                },
-                {
-                  field: 'email', headerName: 'Email', width: 240,
-                  renderCell: (p: GridRenderCellParams<any, any>) => (
-                    isEditable ? (
-                      <TextField size="small" value={p.value ?? ''} onChange={(e) => handleCellChange(p.row.id, 'email', e.target.value)} />
-                    ) : <span>{p.value}</span>
-                  )
-                },
-                {
-                  field: 'GSM', headerName: 'Téléphone', width: 150,
-                  renderCell: (p: GridRenderCellParams<any, any>) => (
-                    isEditable ? (
-                      <TextField size="small" value={p.value ?? ''} onChange={(e) => handleCellChange(p.row.id, 'GSM', e.target.value)} />
-                    ) : <span>{p.value || '-'}</span>
-                  )
-                },
-                {
-                  field: 'titre', headerName: 'Titre', width: 140,
-                  renderCell: (p: GridRenderCellParams<any, any>) => (
-                    isEditable ? (
-                      <TextField size="small" value={p.value ?? ''} onChange={(e) => handleCellChange(p.row.id, 'titre', e.target.value)} />
-                    ) : <span>{p.value || '-'}</span>
-                  )
-                },
-                {
-                  field: 'fonction', headerName: 'Fonction', width: 170,
-                  renderCell: (p: GridRenderCellParams<any, any>) => (
-                    isEditable ? (
-                      <TextField size="small" value={p.value ?? ''} onChange={(e) => handleCellChange(p.row.id, 'fonction', e.target.value)} />
-                    ) : <span>{p.value || '-'}</span>
-                  )
-                },
-                {
-                  field: 'niveau', headerName: 'Niveau', width: 130,
-                  renderCell: (p: GridRenderCellParams<any, any>) => (
-                    isEditable ? (
-                      <FormControl size="small" fullWidth>
-                        <Select value={p.value || ''} onChange={(e) => handleCellChange(p.row.id, 'niveau', e.target.value)}>
-                          <MenuItem value="Junior">Junior</MenuItem>
-                          <MenuItem value="Medior">Medior</MenuItem>
-                          <MenuItem value="Senior">Senior</MenuItem>
-                        </Select>
-                      </FormControl>
-                    ) : <span>{p.value || '-'}</span>
-                  )
-                },
-                { field: 'entreeFonction', headerName: "Date d'entrée", width: 150, sortable: false },
-                {
-                  field: 'actif', headerName: 'Actif', width: 110, sortable: false,
-                  renderCell: (params: GridRenderCellParams<any, any>) => (
-                    <Chip label={params.value ? 'Actif' : 'Inactif'} color={params.value ? 'success' : 'error'} size="small" />
-                  )
-                },
-                {
-                  field: 'admin', headerName: 'Rôle', width: 120, sortable: false,
-                  renderCell: (p: GridRenderCellParams<any, any>) => (
-                    isEditable ? (
-                      <FormControl size="small" fullWidth>
-                        <Select value={p.value || ''} onChange={(e) => handleCellChange(p.row.id, 'admin', e.target.value)}>
-                          <MenuItem value="User">User</MenuItem>
-                          <MenuItem value="Admin">Admin</MenuItem>
-                        </Select>
-                      </FormControl>
-                    ) : (
-                      <Chip label={p.value === 'Admin' ? 'Admin' : 'User'} color={p.value === 'Admin' ? 'secondary' : 'primary'} size="small" />
-                    )
-                  )
-                }
-              ] as GridColDef[]}
+              columns={userColumns}
               disableRowSelectionOnClick
               slots={{ toolbar: GridToolbar }}
               slotProps={{ toolbar: { showQuickFilter: true, quickFilterProps: { debounceMs: 300 } } }}
-              sortingOrder={[ 'asc', 'desc' ]}
+              sortingOrder={['asc', 'desc']}
               disableColumnMenu={false}
               rowSelection={false}
-              checkboxSelection={false}
-              pagination
-              pageSizeOptions={[5, 10, 25, 50]}
-              initialState={{
-                sorting: { sortModel: [
-                  { field: 'fonction', sort: 'asc' },
-                ] },
-                pagination: { paginationModel: { pageSize: 10, page: 0 } }
+              // Removed pagination & checkboxSelection to show all rows
+              hideFooterPagination
+              hideFooterSelectedRowCount
+              sx={{
+                '& .MuiDataGrid-columnHeaders': {
+                  position: 'sticky',
+                  top: 0,
+                  zIndex: 2,
+                  backgroundColor: 'background.paper'
+                },
+                '& .MuiDataGrid-virtualScroller': {
+                  overflowY: 'auto'
+                },
+                // Optional: set a max height for scroll container if parent not constraining
+                maxHeight: '70vh'
               }}
-              // Allow dragging columns to reorder
-              // Column reordering is enabled by default in DataGrid
             />
           </Box>
         </Paper>
@@ -776,6 +760,7 @@ export default function UsersView() {
                   { data: 'nom', type: 'text', width: 160 },
                   { data: 'prenom', type: 'text', width: 160 },
                   { data: 'email', type: 'text', width: 280 },
+                  { data: 'codeitbryan', type: 'text', width: 200 },
                   { data: 'GSM', type: 'text', width: 160 },
                   { data: 'titre', type: 'text', width: 120 },
                   { data: 'fonction', type: 'text', width: 180 },
@@ -783,9 +768,9 @@ export default function UsersView() {
                   { data: 'admin', type: 'checkbox', width: 90 },
                   { data: 'entreeFonction', type: 'text', width: 160 },
                 ]}
-                colHeaders={['Nom *','Prénom *','Email *','Téléphone','Titre','Fonction','Niveau','Admin','Date entrée']}
+                colHeaders={['Nom *','Prénom *','Email *','CodeItBryan','Téléphone','Titre','Fonction','Niveau','Admin','Date entrée']}
         height={400}
-        minWidth={1200}
+        minWidth={1400}
         fitContainer
                 onDataChange={(rows) => {
                   const next = rows as BulkUserData[];

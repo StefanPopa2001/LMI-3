@@ -20,10 +20,11 @@ interface LoginResponse {
 interface User {
   id: number;
   email: string;
+  codeitbryan?: string;
   GSM?: string;
   sel?: string;
   admin: boolean;
-  
+  actif?: boolean;
   mdpTemporaire: boolean;
   titre?: string;
   fonction?: string;
@@ -196,6 +197,7 @@ class AuthService {
   // User management methods (now available to all authenticated users)
   async createUser(userData: {
     email: string;
+    codeitbryan?: string;
     GSM?: string;
     nom: string;
     prenom: string;

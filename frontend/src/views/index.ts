@@ -8,3 +8,4 @@ export { default as ProfileView } from './ProfileView';
 export { default as SettingsView } from './SettingsView';
 export { default as UsersView } from './UsersView';
 export { default as ClassesView } from './ClassesView';
+export { default as FAFOView } from './FAFOView';

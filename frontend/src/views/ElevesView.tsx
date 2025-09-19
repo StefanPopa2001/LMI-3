@@ -661,13 +661,23 @@ export default function ElevesView() {
               disableRowSelectionOnClick
               slots={{ toolbar: GridToolbar }}
               slotProps={{ toolbar: { showQuickFilter: true, quickFilterProps: { debounceMs: 300 } } }}
-              pagination
-              pageSizeOptions={[5, 10, 25, 50]}
-              initialState={{
-                sorting: { sortModel: [{ field: 'nom', sort: 'asc' }] },
-                pagination: { paginationModel: { pageSize: 10, page: 0 } },
+              sortingOrder={['asc', 'desc']}
+              disableColumnMenu={false}
+              rowSelection={false}
+              hideFooterPagination
+              hideFooterSelectedRowCount
+              sx={{
+                '& .MuiDataGrid-columnHeaders': {
+                  position: 'sticky',
+                  top: 0,
+                  zIndex: 2,
+                  backgroundColor: 'background.paper'
+                },
+                '& .MuiDataGrid-virtualScroller': {
+                  overflowY: 'auto'
+                },
+                maxHeight: '70vh'
               }}
-              // Column reordering is enabled by default in DataGrid
             />
           </Box>
         </Paper>

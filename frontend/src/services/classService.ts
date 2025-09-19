@@ -117,6 +117,8 @@ export interface GenerateSeancesData {
   annee: number;
   jourSemaine: number; // 1 = Monday, 2 = Tuesday, etc.
   heureDebut: string; // Format: "HH:MM"
+  dureeSeance: number; // Duration in minutes for each generated seance
+  nombreSemaines: number; // Number of consecutive weeks to generate
 }
 
 class ClassService {

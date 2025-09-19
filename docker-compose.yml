@@ -22,9 +22,15 @@ services:
     depends_on:
       - db
       - redis
+      - minio
     environment:
       DATABASE_URL: postgresql://user:password@db:5432/mydb
       REDIS_URL: redis://redis:6379
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_ACCESS_KEY: admin
+      MINIO_SECRET_KEY: adminadmin
+      DRIVE_BUCKET: drive
     volumes:
       - ./backend:/app
       - /app/node_modules
@@ -41,7 +47,7 @@ services:
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: admin
-      MINIO_ROOT_PASSWORD: admin
+      MINIO_ROOT_PASSWORD: adminadmin
     ports:
       - "9000:9000" # S3 API
       - "9001:9001" # Web console
