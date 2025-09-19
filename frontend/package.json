@@ -6,7 +6,8 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "theme:check": "node scripts/theme-check.mjs"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -15,8 +16,8 @@
     "@mui/material": "^7.3.2",
     "@mui/x-data-grid": "^7.29.9",
     "@types/crypto-js": "^4.2.2",
-    "bootstrap": "^5.3.8",
     "crypto-js": "^4.2.0",
+    "dayjs": "^1.11.18",
     "handsontable": "^16.0.1",
     "next": "15.5.2",
     "react": "19.1.0",

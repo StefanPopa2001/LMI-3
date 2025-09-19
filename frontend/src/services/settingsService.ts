@@ -67,6 +67,9 @@ class SettingsService {
       });
 
       if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('Unauthorized');
+        }
         throw new Error(`Failed to fetch settings for category ${category}: ${response.statusText}`);
       }
 
@@ -136,24 +139,6 @@ class SettingsService {
     }
   }
 
-  async initializeSettings(): Promise<{ message: string; settings: Setting[] }> {
-    try {
-      const response = await fetch(`${API_BASE_URL}/admin/settings/initialize`, {
-        method: 'POST',
-        headers: this.getAuthHeaders(),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Failed to initialize settings: ${response.statusText}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      console.error('Error initializing settings:', error);
-      throw error;
-    }
-  }
 }
 
 export const settingsService = new SettingsService();

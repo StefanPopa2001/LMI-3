@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Card,
@@ -49,6 +49,7 @@ import {
   AddCircleOutline,
   Home
 } from '@mui/icons-material';
+import { StatusChip } from '@/ui/molecules/StatusChip';
 import {
   attendanceService,
   type SeanceWithAttendance,
@@ -58,7 +59,12 @@ import { authService } from '@/services/authService';
 import { settingsService } from '@/services/settingsService';
 import eleveService from '@/services/eleveService';
 import NavBar from '../components/layout/NavBar';
+import { useToast } from '../components/ui/ToastManager';
+import { useRouter } from 'next/navigation';
 import RRModal from '@/components/ui/RRModal';
+import EleveDetailsModal from '@/components/ui/EleveDetailsModal';
+import LoadingOverlay from '@/ui/feedback/LoadingOverlay';
+import GlobalLoadingToast from '@/ui/feedback/GlobalLoadingToast';
 
 interface User {
   id: number;
@@ -89,15 +95,36 @@ const AttendanceView: React.FC = () => {
   );
   const [seances, setSeances] = useState<SeanceWithAttendance[]>([]);
   const [allSeances, setAllSeances] = useState<SeanceWithAttendance[]>([]);
+  // Cache of weeks already fetched to avoid re-fetch / flicker
+  const weekCache = useRef<Record<string, SeanceWithAttendance[]>>({});
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [selectedSeance, setSelectedSeance] = useState<SeanceWithAttendance | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const { error: showError, success: showSuccess } = useToast();
+  const router = useRouter();
+
+  const handleApiError = (err: unknown) => {
+    const message = err instanceof Error ? err.message : String(err || 'Erreur inconnue');
+    setError(message);
+    // Handle auth problems centrally
+    if (message === 'Unauthorized' || message.startsWith('AUTH_ERROR:')) {
+      // Clear auth and redirect to login
+      authService.logout();
+      showError('Session expirée. Veuillez vous reconnecter.');
+      router.push('/login');
+      return;
+    }
+    showError(message);
+  };
   const [updatingPresenceIds, setUpdatingPresenceIds] = useState<Set<number>>(new Set());
   const [isAttendanceDialogOpen, setIsAttendanceDialogOpen] = useState(false);
   const [isRRModalOpen, setIsRRModalOpen] = useState(false);
   const [rrDefaults, setRrDefaults] = useState<{ originSeanceId?: number; eleveId?: number } >({});
   const [rrReadonlyInfo, setRrReadonlyInfo] = useState<{ id: number; type: 'origin' | 'destination'; destStatut?: string } | null>(null);
+  const [eleveDetailsId, setEleveDetailsId] = useState<number | null>(null);
+  const [isEleveDetailsOpen, setIsEleveDetailsOpen] = useState(false);
 
   // Filter states
   const [teachers, setTeachers] = useState<User[]>([]);
@@ -160,30 +187,31 @@ const AttendanceView: React.FC = () => {
     } else {
       loadWeeklySeances();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentWeekStart, viewMode]);
 
   const loadWeeklySeances = async () => {
+    const startDateString = currentWeekStart.toISOString().split('T')[0];
+    // Serve from cache instantly if available
+    if (weekCache.current[startDateString]) {
+      setSeances(weekCache.current[startDateString]);
+      setIsInitialLoad(false);
+      return;
+    }
     setLoading(true);
     try {
-      const startDateString = currentWeekStart.toISOString().split('T')[0];
       const weeklySeances = await attendanceService.getWeeklySeances(startDateString);
-      // Enrich with rrMap details (fetch in parallel, swallow errors per seance)
-      const detailed = await Promise.all(
-        weeklySeances.map(async s => {
-          try {
-            const full = await attendanceService.getSeanceAttendance(s.id);
-            return { ...s, rrMap: full.rrMap } as typeof s;
-          } catch {
-            return s; // fallback to basic seance
-          }
-        })
-      );
-      setSeances(detailed);
-      extractAvailableHours(detailed);
+      // Store raw weekly seances (no enrichment) in cache
+      weekCache.current[startDateString] = weeklySeances;
+      setSeances(weeklySeances);
+      extractAvailableHours(weeklySeances);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur lors du chargement des séances');
+      const message = err instanceof Error ? err.message : 'Erreur lors du chargement des séances';
+      setError(message);
+      showError(message);
     } finally {
       setLoading(false);
+      setIsInitialLoad(false);
     }
   };
 
@@ -202,24 +230,12 @@ const AttendanceView: React.FC = () => {
       }
       const allWeeksSeances = await Promise.all(promises);
       const flatSeances = allWeeksSeances.flat();
-      // Enrich only currently visible (performance: limit to first 200) to avoid huge burst of requests
-      const toEnrich = flatSeances.slice(0, 200);
-      const enrichedSubset = await Promise.all(
-        toEnrich.map(async s => {
-          try {
-            const full = await attendanceService.getSeanceAttendance(s.id);
-            return { ...s, rrMap: full.rrMap } as typeof s;
-          } catch {
-            return s;
-          }
-        })
-      );
-      const enrichedMap = new Map(enrichedSubset.map(s => [s.id, s]));
-      const merged = flatSeances.map(s => enrichedMap.get(s.id) || s);
-      setAllSeances(merged);
-      extractAvailableHours(merged);
+      setAllSeances(flatSeances);
+      extractAvailableHours(flatSeances);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur lors du chargement des séances');
+      const message = err instanceof Error ? err.message : 'Erreur lors du chargement des séances';
+      setError(message);
+      showError(message);
     } finally {
       setLoading(false);
     }
@@ -254,7 +270,7 @@ const AttendanceView: React.FC = () => {
       setLocationSettings(locationData);
       setSalleSettings(salleData);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur lors du chargement des données');
+      handleApiError(err);
     }
   };
 
@@ -268,7 +284,7 @@ const AttendanceView: React.FC = () => {
       setSelectedSeance(seanceWithAttendance);
       setIsAttendanceDialogOpen(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur lors du chargement des présences');
+      handleApiError(err);
     }
   };
 
@@ -369,7 +385,7 @@ const AttendanceView: React.FC = () => {
       if (revertPayload.selectedBackup) {
         setSelectedSeance(revertPayload.selectedBackup);
       }
-      setError(err instanceof Error ? err.message : 'Erreur lors de la mise à jour');
+      handleApiError(err);
     } finally {
       setUpdatingPresenceIds(prev => { const n = new Set(prev); n.delete(presenceId); return n; });
     }
@@ -440,23 +456,15 @@ const AttendanceView: React.FC = () => {
            matchesHeureDebut && matchesWeekNumber;
   });
 
-  if (loading) {
-    return (
-      <div>
-        <NavBar />
-        <Container sx={{ mt: 8 }}>
-          <Box display="flex" justifyContent="center" alignItems="center" minHeight="50vh">
-            <Typography variant="h6">Chargement...</Typography>
-          </Box>
-        </Container>
-      </div>
-    );
-  }
+  // Instead of early return, we use an overlay for better perceived speed
 
   return (
-    <div>
+    <div style={{ position: 'relative' }}>
       <NavBar />
-      <Container maxWidth="xl" sx={{ py: { xs: 2, sm: 4 }, mt: 8, px: { xs: 2, sm: 3 } }}>
+      <Container maxWidth="xl" sx={{ position: 'relative', py: { xs: 2, sm: 4 }, mt: 8, px: { xs: 2, sm: 3 } }}>
+  {/* Full overlay only on the very first load so layout stays; after that use toast */}
+  <LoadingOverlay active={loading && isInitialLoad} />
+  <GlobalLoadingToast active={loading && !isInitialLoad} label={viewMode === 'grid' ? 'Chargement des séances...' : 'Mise à jour de la semaine...'} />
       {/* Header */}
       <Box display="flex" justifyContent="center" alignItems="center" mb={{ xs: 2, sm: 4 }}>
         <Typography variant="h1" component="h1" sx={{ 
@@ -1331,9 +1339,16 @@ const AttendanceView: React.FC = () => {
                                           alignItems: 'center',
                                           gap: 0.5
                                         }}>
+                                          <IconButton
+                                            size="small"
+                                            onClick={(e)=>{ e.stopPropagation(); setEleveDetailsId(eleveInClasse.eleve.id); setIsEleveDetailsOpen(true); }}
+                                            sx={{ p: 0.3, color: 'var(--color-text-secondary)' }}
+                                          >
+                                            <Search sx={{ fontSize: '0.9rem' }} />
+                                          </IconButton>
                                           {eleveInClasse.eleve.prenom} {eleveInClasse.eleve.nom}
-                                          {originRR && <Chip size="small" label="RR o" sx={{ bgcolor: 'rgba(245,124,0,0.25)', color: '#f57c00' }} />}
-                                          {destRR && <Chip size="small" label="RR d" sx={{ bgcolor: 'rgba(25,118,210,0.25)', color: '#1976d2' }} />}
+                                          {originRR && <StatusChip size="small" label="RR o" variant="originRR" />}
+                                          {destRR && <StatusChip size="small" label="RR d" variant="destRR" />}
                                         </Typography>
                                         
                                         <Box display="flex" gap={0.5}>
@@ -1646,8 +1661,8 @@ const AttendanceView: React.FC = () => {
                                   gap: 0.5
                                 }}>
                                   {eleveInClasse.eleve.prenom} {eleveInClasse.eleve.nom}
-                                  {originRR && <Chip size="small" label="RR o" sx={{ bgcolor: 'rgba(245,124,0,0.25)', color: '#f57c00' }} />}
-                                  {destRR && <Chip size="small" label="RR d" sx={{ bgcolor: 'rgba(25,118,210,0.25)', color: '#1976d2' }} />}
+                                  {originRR && <StatusChip size="small" label="RR o" variant="originRR" />}
+                                  {destRR && <StatusChip size="small" label="RR d" variant="destRR" />}
                                 </Typography>
                                 
                                 <Box display="flex" gap={0.5}>
@@ -1894,11 +1909,20 @@ const AttendanceView: React.FC = () => {
                         }}
                       >
                     <TableCell sx={{ color: 'var(--color-text-primary)' }}>
-                      <Typography variant="body2" sx={{ color: destRR ? '#1976d2' : originRR ? '#f57c00' : 'var(--color-text-primary)', display: 'flex', alignItems: 'center', gap: 1 }}>
-                        {presence.eleve.prenom} {presence.eleve.nom}
-                        {originRR && <Chip size="small" label="RR origine" sx={{ bgcolor: 'rgba(245,124,0,0.2)', color: '#f57c00' }} />}
-                        {destRR && <Chip size="small" label="RR destin." sx={{ bgcolor: 'rgba(25,118,210,0.2)', color: '#1976d2' }} />}
-                      </Typography>
+                      <Box display="flex" alignItems="center" gap={1}>
+                        <IconButton
+                          size="small"
+                          onClick={(e)=>{ e.stopPropagation(); setEleveDetailsId(presence.eleveId); setIsEleveDetailsOpen(true); }}
+                          sx={{ p: 0.4, color: 'var(--color-text-secondary)' }}
+                        >
+                          <Search sx={{ fontSize: '1rem' }} />
+                        </IconButton>
+                        <Typography variant="body2" sx={{ color: destRR ? '#1976d2' : originRR ? '#f57c00' : 'var(--color-text-primary)', display: 'flex', alignItems: 'center', gap: 1 }}>
+                          {presence.eleve.prenom} {presence.eleve.nom}
+                          {originRR && <StatusChip size="small" label="RR origine" variant="originRR" />}
+                          {destRR && <StatusChip size="small" label="RR destin." variant="destRR" />}
+                        </Typography>
+                      </Box>
                     </TableCell>
                     <TableCell sx={{ color: 'var(--color-text-primary)' }}>
                       <Chip
@@ -2011,6 +2035,11 @@ const AttendanceView: React.FC = () => {
         existingInfo={rrReadonlyInfo}
         onCreated={handleRRCreated}
         onDeleted={handleRRDeleted}
+      />
+      <EleveDetailsModal
+        open={isEleveDetailsOpen}
+        eleveId={eleveDetailsId}
+        onClose={() => { setIsEleveDetailsOpen(false); setEleveDetailsId(null); }}
       />
     </Container>
     </div>

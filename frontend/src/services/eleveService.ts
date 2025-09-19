@@ -189,6 +189,10 @@ class EleveService {
       method: 'DELETE',
     });
   }
+
+  async getEleveDetails(id: number): Promise<{ eleve: Eleve; seances: Array<{ id: number; dateHeure: string; duree: number; statut: string; weekNumber?: number | null; classe: { id: number; nom: string; level?: string | null; teacher?: { id: number; nom: string; prenom: string } }; attendance: { presenceId: number; statut: string; notes?: string | null } | null; rr: { type: 'origin' | 'destination'; id: number; destStatut?: string | null } | null }>; }> {
+    return this.makeRequest(`/admin/eleves/${id}/details`);
+  }
 }
 
 const eleveService = new EleveService();

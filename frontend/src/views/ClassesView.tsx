@@ -1815,14 +1815,14 @@ const ClassesView: React.FC = () => {
           </Box>
         </DialogTitle>
         
-        <Box sx={{ borderBottom: 1, borderColor: '#444', bgcolor: '#2d2d2d' }}>
+        <Box sx={{ borderBottom: '1px solid var(--color-border-medium)', bgcolor: 'var(--color-bg-secondary)' }}>
           <Tabs 
             value={tabValue} 
             onChange={(_, newValue) => setTabValue(newValue)}
             sx={{
-              '& .MuiTab-root': { color: '#bdbdbd' },
-              '& .Mui-selected': { color: 'white' },
-              '& .MuiTabs-indicator': { backgroundColor: '#90caf9' }
+              '& .MuiTab-root': { color: 'var(--color-text-secondary)' },
+              '& .Mui-selected': { color: 'var(--color-text-primary)' },
+              '& .MuiTabs-indicator': { backgroundColor: 'var(--color-primary-500)' }
             }}
           >
             <Tab label="Séances" />
@@ -2203,10 +2203,10 @@ const ClassesView: React.FC = () => {
           }
         }}
       >
-        <DialogTitle sx={{ bgcolor: '#2d2d2d', color: 'white', borderBottom: '1px solid #444' }}>
+  <DialogTitle sx={{ bgcolor: 'var(--color-bg-secondary)', color: 'var(--color-text-primary)', borderBottom: '1px solid var(--color-border-light)' }}>
           Créer une nouvelle classe
         </DialogTitle>
-        <DialogContent sx={{ bgcolor: '#1e1e1e' }}>
+  <DialogContent sx={{ bgcolor: 'var(--color-bg-primary)' }}>
           <Box component="form" onSubmit={(e) => { e.preventDefault(); handleCreateClass(); }} sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
             <TextField
               label="Nom de la classe"
@@ -2215,12 +2215,12 @@ const ClassesView: React.FC = () => {
               placeholder="Ex: Programmation Python Débutant"
               fullWidth
               sx={{
-                '& .MuiInputBase-root': { bgcolor: '#2d2d2d', color: 'white' },
-                '& .MuiInputLabel-root': { color: '#bdbdbd' },
+                '& .MuiInputBase-root': { bgcolor: 'var(--color-bg-secondary)', color: 'var(--color-text-primary)' },
+                '& .MuiInputLabel-root': { color: 'var(--color-text-secondary)' },
                 '& .MuiOutlinedInput-root': {
-                  '& fieldset': { borderColor: '#444' },
-                  '&:hover fieldset': { borderColor: '#666' },
-                  '&.Mui-focused fieldset': { borderColor: '#90caf9' }
+                  '& fieldset': { borderColor: 'var(--color-border-light)' },
+                  '&:hover fieldset': { borderColor: 'var(--color-border-medium)' },
+                  '&.Mui-focused fieldset': { borderColor: 'var(--color-primary-500)' }
                 }
               }}
             />
@@ -2610,7 +2610,7 @@ const ClassesView: React.FC = () => {
               <Button 
                 type="submit"
                 variant="contained" 
-                sx={{ bgcolor: '#1976d2', '&:hover': { bgcolor: '#1565c0' } }}
+                sx={{ bgcolor: 'var(--color-primary-500)', '&:hover': { bgcolor: 'var(--color-primary-600)' } }}
               >
                 Créer la classe
               </Button>

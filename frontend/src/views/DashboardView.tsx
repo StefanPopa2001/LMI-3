@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useMemo } from 'react';
-import { Box, Typography, Grid } from '@mui/material';
+import { Box } from '@mui/material';
 import { useRouter } from 'next/navigation';
 import {
   People as PeopleIcon,
@@ -13,11 +13,12 @@ import {
   Recycling as RecyclingIcon,
   AttachMoney as AttachMoneyIcon,
   BusinessCenter as BusinessCenterIcon,
+  Cloud as CloudIcon,
 } from '@mui/icons-material';
 
 import NavBar from '../components/layout/NavBar';
-import { DashboardPageLayout } from '../components/layout/PageLayout';
-import { ThemedCard, ThemedButton, ThemedGrid } from '../components/ui/ThemedComponents';
+import { ThemedGrid } from '../components/ui/ThemedComponents';
+import DashboardFeatureCard from '@/ui/organisms/DashboardFeatureCard';
 import authService from '../services/authService';
 import { usePageTheme } from '../components/layout/PageThemeProvider';
 
@@ -126,19 +127,17 @@ export default function DashboardView() {
       route: '/permanence',
       stats: 'Surveillance active',
     },
+    {
+      title: 'Drive',
+      description: 'Fichiers partagés / stockage',
+      icon: <CloudIcon sx={{ fontSize: '8rem' }} />,
+      route: '/drive',
+      stats: 'Stockage',
+    },
   ];
 
-  const cardColors = useMemo(() => [
-    currentTheme?.palette?.primary?.main || '#1976d2',     // Utilisateurs - Primary theme color
-    currentTheme?.palette?.secondary?.main || '#dc004e',   // Étudiants - Secondary theme color
-    '#2196f3', // Classes - Blue (Material Design blue)
-    '#9c27b0', // Présences - Purple (Material Design purple)
-    '#f44336', // Analyses - Red (Material Design red)
-    '#4caf50', // Paramètres - Green (Material Design green)
-    '#ff9800', // Rapports - Orange (Material Design orange)
-    '#ffd700', // Logipay - Gold (Material Design amber/gold)
-    '#009688', // Permanence - Teal (Material Design teal) - Business Center icon
-  ], [currentTheme]);
+  // Order feed for accentuation cycle
+  const cardColors = useMemo(() => Array(dashboardCards.length).fill(null), [dashboardCards.length]);
 
   return (
     <Box sx={{ 
@@ -170,72 +169,15 @@ export default function DashboardView() {
             }
           }}
         >
-          {dashboardCards.map((card, index) => {
-            const cardColor = cardColors[index % cardColors.length];
-            return (
-              <Box
-                key={index}
-                onClick={() => router.push(card.route)}
-                sx={{
-                  height: '200px',
-                  borderRadius: 3,
-                  background: `linear-gradient(135deg, ${cardColor} 0%, ${cardColor}ee 100%)`,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  padding: 3,
-                  transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                  position: 'relative',
-                  overflow: 'hidden',
-                  border: '2px solid rgba(255, 255, 255, 0.3)',
-                  '&:hover': {
-                    transform: 'translateY(-8px) scale(1.02)',
-                    boxShadow: `0 20px 40px ${cardColor}50`,
-                    border: '2px solid rgba(255, 255, 255, 0.6)',
-                    '&::before': {
-                      transform: 'scale(1.1)',
-                    }
-                  },
-                  '&::before': {
-                    content: '""',
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    background: `linear-gradient(135deg, ${cardColor}30 0%, ${cardColor}50 100%)`,
-                    borderRadius: 3,
-                    transition: 'transform 0.3s ease',
-                  }
-                }}
-              >
-                <Box sx={{ 
-                  color: 'white', 
-                  mb: 1,
-                  zIndex: 1,
-                  opacity: 1,
-                  filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))'
-                }}>
-                  {card.icon}
-                </Box>
-                <Typography 
-                  variant="h5" 
-                  sx={{ 
-                    color: 'white', 
-                    fontWeight: 700,
-                    textAlign: 'center',
-                    zIndex: 1,
-                    fontSize: '1.4rem',
-                    textShadow: '0 2px 4px rgba(0,0,0,0.5)',
-                    letterSpacing: '0.5px'
-                  }}
-                >
-                  {card.title}
-                </Typography>
-              </Box>
-            );
-          })}
+          {dashboardCards.map((card, index) => (
+            <DashboardFeatureCard
+              key={card.title}
+              title={card.title}
+              route={card.route}
+              icon={card.icon}
+              index={index}
+            />
+          ))}
         </ThemedGrid>
       </Box>
     </Box>

@@ -45,7 +45,6 @@ export default function SettingsView({ className = '' }: SettingsViewProps) {
   const loadSettings = async () => {
     try {
       setLoading(true);
-      showError(null);
       const data = await settingsService.getAllSettings();
       setSettings(data);
     } catch (err) {
@@ -68,6 +67,7 @@ export default function SettingsView({ className = '' }: SettingsViewProps) {
         description: '',
         order: 0
       });
+      showSuccess('Paramètre créé');
     } catch (err) {
       showError(err instanceof Error ? err.message : 'Erreur lors de la création');
     }
@@ -93,6 +93,7 @@ export default function SettingsView({ className = '' }: SettingsViewProps) {
         description: '',
         order: 0
       });
+      showSuccess('Paramètre mis à jour');
     } catch (err) {
       showError(err instanceof Error ? err.message : 'Erreur lors de la mise à jour');
     }
@@ -104,19 +105,9 @@ export default function SettingsView({ className = '' }: SettingsViewProps) {
     try {
       await settingsService.deleteSetting(id);
       await loadSettings();
+      showSuccess('Paramètre supprimé');
     } catch (err) {
       showError(err instanceof Error ? err.message : 'Erreur lors de la suppression');
-    }
-  };
-
-  const handleInitializeSettings = async () => {
-    if (!confirm('Êtes-vous sûr de vouloir initialiser les paramètres par défaut ? Cela ajoutera des valeurs par défaut pour toutes les catégories.')) return;
-    
-    try {
-      await settingsService.initializeSettings();
-      await loadSettings();
-    } catch (err) {
-      showError(err instanceof Error ? err.message : 'Erreur lors de l\'initialisation');
     }
   };
 
@@ -237,18 +228,6 @@ export default function SettingsView({ className = '' }: SettingsViewProps) {
                 <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>{categoryDescriptions[activeCategory]}</p>
               </div>
               <div className="flex gap-2">
-                <button
-                  onClick={handleInitializeSettings}
-                  className="px-4 py-2 rounded font-semibold transition-all duration-200"
-                  style={{ 
-                    backgroundColor: 'var(--color-warning-500)', 
-                    color: 'var(--color-text-primary)' 
-                  }}
-                  onMouseEnter={(e) => (e.target as HTMLElement).style.backgroundColor = 'var(--color-warning-600)'}
-                  onMouseLeave={(e) => (e.target as HTMLElement).style.backgroundColor = 'var(--color-warning-500)'}
-                >
-                  Initialiser
-                </button>
                 <button
                   onClick={openCreateModal}
                   className="px-4 py-2 rounded font-semibold transition-all duration-200"

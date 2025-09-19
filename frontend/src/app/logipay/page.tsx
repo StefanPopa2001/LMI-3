@@ -1,3 +1,4 @@
+"use client";
 import LogipayView from '../../views/LogipayView';
 
 export default function LogipayPage() {

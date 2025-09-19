@@ -1,4 +1,4 @@
-import { colorPalette, tailwindColors, getCardColor, getTailwindClasses } from '../components/layout/ThemeRegistry';
+import { colorPalette, tailwindColors, getCardColor, getTailwindClasses } from '@/theme';
 
 // Re-export everything from ThemeRegistry for easy access
 export { colorPalette, tailwindColors, getCardColor, getTailwindClasses };

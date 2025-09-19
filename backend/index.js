@@ -3,6 +3,11 @@ const { ApolloServer } = require('@apollo/server');
 const { expressMiddleware } = require('@apollo/server/express4');
 const { PrismaClient } = require('@prisma/client');
 const redis = require('redis');
+const multer = require('multer');
+const { Client: MinioClient } = require('minio');
+const winston = require('winston');
+const fs = require('fs');
+const path = require('path');
 const cors = require('cors');
 const CryptoJS = require('crypto-js');
 const validator = require('validator');
@@ -128,6 +133,29 @@ const resolvers = {
 
 async function startServer() {
   console.log('🚀 Starting server...');
+  // Ensure log directories
+  const logBase = path.join(__dirname, '..', 'logs');
+  const backendLogDir = path.join(logBase, 'backend');
+  const frontendLogDir = path.join(logBase, 'frontend');
+  [logBase, backendLogDir, frontendLogDir].forEach(d => { if (!fs.existsSync(d)) fs.mkdirSync(d); });
+
+  const backendLogger = winston.createLogger({
+    level: 'info',
+    format: winston.format.combine(winston.format.timestamp(), winston.format.json()),
+    transports: [
+      new winston.transports.File({ filename: path.join(backendLogDir, 'error.log'), level: 'error' }),
+      new winston.transports.File({ filename: path.join(backendLogDir, 'general.log') })
+    ]
+  });
+  if (process.env.NODE_ENV !== 'production') {
+    backendLogger.add(new winston.transports.Console({ format: winston.format.simple() }));
+  }
+
+  // Wrap console.* to also log
+  const origConsoleError = console.error;
+  console.error = (...args) => { backendLogger.error(args.map(a=> (a instanceof Error ? a.stack : a)).join(' ')); origConsoleError(...args); };
+  const origConsoleLog = console.log;
+  console.log = (...args) => { backendLogger.info(args.join(' ')); origConsoleLog(...args); };
   
   const app = express();
 
@@ -192,6 +220,118 @@ async function startServer() {
 
   app.get('/health', (req, res) => {
     res.json({ status: 'OK', message: 'Server is healthy' });
+  });
+
+  // ==================== MINIO (DRIVE) INITIALIZATION ====================
+  const MINIO_ENDPOINT = process.env.MINIO_ENDPOINT || 'minio';
+  const MINIO_PORT = parseInt(process.env.MINIO_PORT || '9000');
+  const MINIO_ACCESS_KEY = process.env.MINIO_ACCESS_KEY || 'admin';
+  const MINIO_SECRET_KEY = process.env.MINIO_SECRET_KEY || 'adminpassword';
+  const MINIO_USE_SSL = false;
+  const DRIVE_BUCKET = process.env.DRIVE_BUCKET || 'drive';
+
+  const minioClient = new MinioClient({
+    endPoint: MINIO_ENDPOINT,
+    port: MINIO_PORT,
+    useSSL: MINIO_USE_SSL,
+    accessKey: MINIO_ACCESS_KEY,
+    secretKey: MINIO_SECRET_KEY
+  });
+
+  // Ensure bucket exists
+  try {
+    const exists = await minioClient.bucketExists(DRIVE_BUCKET).catch(()=>false);
+    if (!exists) {
+      await minioClient.makeBucket(DRIVE_BUCKET, 'eu-west-1');
+      console.log(`Created MinIO bucket '${DRIVE_BUCKET}'`);
+    }
+  } catch (e) {
+    console.warn('MinIO bucket init error:', e.message);
+  }
+
+  const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
+
+  // ==================== DRIVE (FILE) ENDPOINTS ====================
+  // List files
+  app.get('/admin/drive', verifyAdminToken, async (req, res) => {
+    try {
+      const objects = [];
+      const stream = minioClient.listObjectsV2(DRIVE_BUCKET, '', true);
+      stream.on('data', obj => {
+        if (obj && obj.name) {
+          objects.push({
+            name: obj.name,
+            size: obj.size,
+            lastModified: obj.lastModified
+          });
+        }
+      });
+      stream.on('end', () => res.json({ files: objects }));
+      stream.on('error', err => {
+        console.error('MinIO list error', err);
+        res.status(500).json({ error: 'Failed to list files' });
+      });
+    } catch (err) {
+      res.status(500).json({ error: 'Drive listing failed' });
+    }
+  });
+
+  // ==================== FRONTEND LOG INGESTION ====================
+  const frontendLogger = winston.createLogger({
+    level: 'info',
+    format: winston.format.combine(winston.format.timestamp(), winston.format.json()),
+    transports: [
+      new winston.transports.File({ filename: path.join(frontendLogDir, 'error.log'), level: 'error' }),
+      new winston.transports.File({ filename: path.join(frontendLogDir, 'general.log') })
+    ]
+  });
+  app.post('/admin/logs/frontend', verifyAdminToken, async (req, res) => {
+    try {
+      const { level = 'info', message, meta } = req.body || {};
+      if (!message) return res.status(400).json({ error: 'Missing message' });
+      if (level === 'error') frontendLogger.error({ message, meta }); else frontendLogger.info({ message, meta });
+      res.json({ status: 'ok' });
+    } catch (e) {
+      backendLogger.error('Frontend log ingest failed ' + e.message);
+      res.status(500).json({ error: 'Failed to log' });
+    }
+  });
+
+  // Upload file
+  app.post('/admin/drive/upload', verifyAdminToken, upload.single('file'), async (req, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+      const objectName = req.file.originalname; // TODO: optionally namespace per user/date
+      await minioClient.putObject(DRIVE_BUCKET, objectName, req.file.buffer, req.file.size, { 'Content-Type': req.file.mimetype });
+      res.json({ message: 'Uploaded', name: objectName });
+    } catch (err) {
+      console.error('Upload error', err);
+      res.status(500).json({ error: 'Upload failed' });
+    }
+  });
+
+  // Get presigned download URL
+  app.get('/admin/drive/download/:name', verifyAdminToken, async (req, res) => {
+    try {
+      const { name } = req.params;
+      const url = await minioClient.presignedGetObject(DRIVE_BUCKET, name, 60 * 60); // 1h
+      res.json({ url });
+    } catch (err) {
+      console.error('Download URL error', err);
+      res.status(500).json({ error: 'Failed to get download URL' });
+    }
+  });
+
+  // Delete file
+  app.delete('/admin/drive/:name', verifyAdminToken, async (req, res) => {
+    try {
+      const { name } = req.params;
+      await minioClient.removeObject(DRIVE_BUCKET, name);
+      res.json({ message: 'Deleted' });
+    } catch (err) {
+      console.error('Delete error', err);
+      res.status(500).json({ error: 'Failed to delete file' });
+    }
   });
 
   // ==================== USER AUTHENTICATION ENDPOINTS ====================
@@ -783,6 +923,75 @@ async function startServer() {
     } catch (err) {
       console.error("Delete eleve error:", err);
       res.status(400).json({ error: "Failed to delete eleve" });
+    }
+  });
+
+  // Get detailed eleve info including related seances & attendance
+  app.get('/admin/eleves/:id/details', authenticate, requireAdmin, async (req, res) => {
+    try {
+      const eleveId = parseInt(req.params.id);
+      const eleve = await prisma.eleve.findUnique({ where: { id: eleveId } });
+      if (!eleve) return res.status(404).json({ error: 'Eleve not found' });
+
+      // Fetch all classes the student is enrolled in and their seances
+      const classeLinks = await prisma.classeEleve.findMany({
+        where: { eleveId },
+        include: {
+          classe: {
+            include: {
+              seances: true,
+              teacher: { select: { id: true, nom: true, prenom: true } }
+            }
+          }
+        }
+      });
+
+      const allSeanceIds = classeLinks.flatMap(cl => cl.classe.seances.map(s => s.id));
+
+      let presences = [];
+      if (allSeanceIds.length) {
+        presences = await prisma.presence.findMany({
+          where: { eleveId, seanceId: { in: allSeanceIds } },
+          select: { id: true, seanceId: true, statut: true, notes: true }
+        });
+      }
+
+      // Replacement requests (origin or destination) for this eleve
+      const [originRRs, destinationRRs] = await Promise.all([
+        prisma.replacementRequest.findMany({
+          where: { eleveId, status: { not: 'cancelled' } },
+          select: { id: true, originSeanceId: true, destinationSeanceId: true, status: true, destStatut: true, rrType: true }
+        }),
+        prisma.replacementRequest.findMany({
+          where: { eleveId, status: { not: 'cancelled' } }, // same query but we'll separate mapping below
+          select: { id: true, originSeanceId: true, destinationSeanceId: true, status: true, destStatut: true, rrType: true }
+        })
+      ]); // (kept symmetrical if future differentiation is needed)
+
+      // Build seance details with attendance statut
+      const seancesDetailed = classeLinks.flatMap(cl => cl.classe.seances.map(se => {
+        const presence = presences.find(p => p.seanceId === se.id);
+        const rrOrigin = originRRs.find(r => r.originSeanceId === se.id);
+        const rrDest = destinationRRs.find(r => r.destinationSeanceId === se.id);
+        return {
+          id: se.id,
+            dateHeure: se.dateHeure,
+            duree: se.duree,
+            statut: se.statut,
+            weekNumber: se.weekNumber,
+            classe: { id: cl.classe.id, nom: cl.classe.nom, level: cl.classe.level, teacher: cl.classe.teacher },
+            attendance: presence ? { presenceId: presence.id, statut: presence.statut, notes: presence.notes } : null,
+            rr: rrOrigin ? { type: 'origin', id: rrOrigin.id, destStatut: rrOrigin.destStatut } : rrDest ? { type: 'destination', id: rrDest.id, destStatut: rrDest.destStatut } : null
+        };
+      }));
+
+      // Sort seances by date
+      seancesDetailed.sort((a,b) => new Date(a.dateHeure).getTime() - new Date(b.dateHeure).getTime());
+
+      res.json({ eleve, seances: seancesDetailed });
+    } catch (err) {
+      console.error('Get eleve details error:', err);
+      res.status(500).json({ error: 'Failed to fetch eleve details' });
     }
   });
 

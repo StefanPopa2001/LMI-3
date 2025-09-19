@@ -25,6 +25,7 @@ import {
   Brightness7 as Brightness7Icon,
   Palette as PaletteIcon,
   Assessment as AssessmentIcon,
+  Cloud as CloudIcon,
 } from '@mui/icons-material';
 import { useRouter } from 'next/navigation';
 import authService from '../../services/authService';
@@ -116,6 +117,10 @@ export default function NavBar({ title = "Logiscool Mons Intranet III" }: NavBar
     handleBurgerClose();
     router.push('/theme');
   };
+  const handleNavigateToDrive = () => {
+    handleBurgerClose();
+    router.push('/drive');
+  };
 
   const currentUser = mounted ? authService.getCurrentUser() : null;
   const userInitial = currentUser?.prenom ? currentUser.prenom.charAt(0).toUpperCase() : '?';
@@ -134,7 +139,6 @@ export default function NavBar({ title = "Logiscool Mons Intranet III" }: NavBar
           >
             <MenuIcon />
           </IconButton>
-          <DashboardIcon sx={{ mr: 2 }} />
           <Typography variant="h6" component="div" sx={{ flexGrow: 1, fontWeight: 'bold', color: '#2196f3', fontFamily: 'var(--font-montserrat)', textTransform: 'uppercase', letterSpacing: '0.5px', cursor: 'pointer' }}>
             <Box sx={{ display: { xs: 'block', sm: 'none' } }}>LMI3</Box>
             <Box sx={{ display: { xs: 'none', sm: 'block' } }}>{title}</Box>
@@ -176,7 +180,6 @@ export default function NavBar({ title = "Logiscool Mons Intranet III" }: NavBar
         >
           <MenuIcon />
         </IconButton>
-        <DashboardIcon sx={{ mr: 2 }} />
         <Typography 
           variant="h6" 
           component="div" 
@@ -291,6 +294,12 @@ export default function NavBar({ title = "Logiscool Mons Intranet III" }: NavBar
               <PaletteIcon sx={{ mr: 1 }} />
               Thème
             </MenuItem>
+            {currentUser?.admin && (
+              <MenuItem onClick={handleNavigateToDrive}>
+                <CloudIcon sx={{ mr: 1 }} />
+                Drive
+              </MenuItem>
+            )}
           </Menu>
         </Box>
       </Toolbar>

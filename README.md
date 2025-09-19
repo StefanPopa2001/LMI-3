@@ -12,6 +12,11 @@ npm run dev
 
 Environment variable `NEXT_PUBLIC_API_URL` should point to backend (default http://localhost:4000).
 
+Docs for automated editors
+
+- Copilot-focused server & DB reference: `docs/COPILOT_SERVER_DB.md`
+- Backend quick guide: `backend/COPILOT_README.md`
+
 ## Replacement Requests (RR) Types
 
 Two RR types exist:
