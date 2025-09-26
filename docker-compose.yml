@@ -1,65 +1,102 @@
 services:
-  db:
+  
+  db_postgres_lmi3:
     image: postgres:15
+    env_file: .env
     environment:
-      POSTGRES_DB: mydb
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-    ports:
-      - "5433:5432"
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - network-starco-global
+    restart: always
 
-  redis:
+  redis_lmi3:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
+    networks:
+      - network-starco-global
+    restart: always
 
-  backend:
+  backend_lmi3:
     build: ./backend
-    ports:
-      - "4000:4000"
+    restart: always
     depends_on:
-      - db
-      - redis
-      - minio
+      - db_postgres_lmi3
+      - redis_lmi3
+    env_file: .env
     environment:
-      DATABASE_URL: postgresql://user:password@db:5432/mydb
-      REDIS_URL: redis://redis:6379
-      MINIO_ENDPOINT: minio
-      MINIO_PORT: 9000
-      MINIO_ACCESS_KEY: admin
-      MINIO_SECRET_KEY: adminadmin
-      DRIVE_BUCKET: drive
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT}
+      MINIO_PORT: ${MINIO_PORT}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      DRIVE_BUCKET: ${DRIVE_BUCKET}
+      DEBUG_NO_VALIDATION: ${DEBUG_NO_VALIDATION}
+      DEFAULT_PASSWORD: ${DEFAULT_PASSWORD}
     volumes:
       - ./backend:/app
       - /app/node_modules
-
-  frontend:
-    build: ./frontend
-    ports:
-      - "3000:3000"
-    depends_on:
-      - backend
-
-  minio:
-    image: minio/minio:latest
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: admin
-      MINIO_ROOT_PASSWORD: adminadmin
-    ports:
-      - "9000:9000" # S3 API
-      - "9001:9001" # Web console
-    volumes:
-      - minio_data:/data
-    # Simple healthcheck (optional)
+    networks:
+      - network-starco-global
     healthcheck:
-      test: ["CMD", "bash", "-c", "curl -f http://localhost:9000/minio/health/live || exit 1"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:4000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 40s
+    labels:
+      - "traefik.enable=true"
+      # API routes with /LMI3/API prefix for domain (HTTPS)
+      - "traefik.http.routers.backend-lmi3-api-secure.rule=Host(`popa-stefan.be`) && PathPrefix(`/LMI3/API`)"
+      - "traefik.http.routers.backend-lmi3-api-secure.entrypoints=websecure"
+      - "traefik.http.routers.backend-lmi3-api-secure.tls.certresolver=myresolver"
+      - "traefik.http.routers.backend-lmi3-api-secure.service=backend-lmi3"
+      - "traefik.http.routers.backend-lmi3-api-secure.middlewares=api-stripprefix,cors"
+      - "traefik.http.routers.backend-lmi3-api-secure.priority=10"
+      # Service configuration
+      - "traefik.http.services.backend-lmi3.loadbalancer.server.port=4000"
+      # Fix stripprefix middleware
+      - "traefik.http.middlewares.api-stripprefix.stripprefix.prefixes=/LMI3/API"
+      # Enhanced CORS headers
+      - "traefik.http.middlewares.cors.headers.accesscontrolallowmethods=GET,OPTIONS,PUT,POST,DELETE,PATCH"
+      - "traefik.http.middlewares.cors.headers.accesscontrolallowheaders=*"
+      - "traefik.http.middlewares.cors.headers.accesscontrolalloworiginlist=https://popa-stefan.be,https://www.popa-stefan.be,http://localhost:3000"
+      - "traefik.http.middlewares.cors.headers.accesscontrolallowcredentials=true"
+      - "traefik.http.middlewares.cors.headers.accesscontrolmaxage=86400"
+      - "traefik.http.middlewares.cors.headers.addvaryheader=true"
+      - "traefik.http.middlewares.cors.headers.accesscontrolexposeheaders=*"
+
+  frontend:
+    build: ./frontend
+    restart: always
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: https://popa-stefan.be/LMI3/API
+    # Do not mount the host source into /app in production -- it hides the built standalone
+    # volumes:
+    #  - ./frontend:/app:ro
+    networks:
+      - network-starco-global
+    labels:
+      - "traefik.enable=true"
+      # Serve the frontend under /LMI3/Webapp
+      - "traefik.http.routers.frontend-web.rule=Host(`popa-stefan.be`) && PathPrefix(`/LMI3/Webapp`)"
+      - "traefik.http.routers.frontend-web.entrypoints=websecure"
+      - "traefik.http.routers.frontend-web.tls.certresolver=myresolver"
+      - "traefik.http.routers.frontend-web.service=frontend-service"
+      - "traefik.http.routers.frontend-web.priority=5"
+      - "traefik.http.services.frontend-service.loadbalancer.server.port=3000"
+      # Do not strip the prefix, let Next.js handle the basePath
+      # - "traefik.http.middlewares.web-stripprefix.stripprefix.prefixes=/LMI3/Webapp"
+
+networks:
+  network-starco-global:
+    external: true
+    name: docker_starco_network_network-starco-global
 
 volumes:
   postgres_data:
-  minio_data:

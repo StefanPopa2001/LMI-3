@@ -1,11 +1,12 @@
 import authService from './authService';
+import { config } from '../config';
 
 export interface DriveFile { name: string; path: string; size: number; lastModified?: string; }
 export interface DriveListResponse { prefix: string; folders: string[]; files: DriveFile[]; }
 
 class DriveService {
   private baseURL: string;
-  constructor() { this.baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'; }
+  constructor() { this.baseURL = config.API_URL; }
 
   private async request(path: string, options: RequestInit = {}) {
     const token = authService.getToken();
@@ -59,17 +60,24 @@ class DriveService {
     if (!res.ok) throw new Error('Upload failed');
   }
 
-  async getDownloadUrl(key: string): Promise<string> {
+  async getDownloadUrl(key: string): Promise<{ url: string | null; proxy: string }> {
     const data = await this.request(`/admin/drive/download/${encodeURIComponent(key)}`);
-    return data.url;
+    return { url: data.url || null, proxy: `${this.baseURL}${data.proxy}` };
   }
 
   async deleteObject(key: string): Promise<void> {
     await this.request(`/admin/drive/${encodeURIComponent(key)}`, { method: 'DELETE' });
   }
 
-  async preview(key: string): Promise<{ type: 'text'; truncated: boolean; content: string } | { type: 'binary'; url: string }> {
-    return this.request(`/admin/drive/preview${this.qs({ key })}`);
+  async preview(key: string): Promise<
+    | { type: 'text'; truncated: boolean; content: string }
+    | { type: 'binary'; url: string | null; proxy: string }
+  > {
+    const data = await this.request(`/admin/drive/preview${this.qs({ key })}`);
+    if (data.type === 'binary') {
+      return { type: 'binary', url: data.url || null, proxy: `${this.baseURL}${data.proxy}` };
+    }
+    return data;
   }
 }
 

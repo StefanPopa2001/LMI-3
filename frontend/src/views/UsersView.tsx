@@ -36,6 +36,7 @@ import {
 import ThemeRegistry from '../components/layout/ThemeRegistry';
 import NavBar from '../components/layout/NavBar';
 import authService, { User } from '../services/authService';
+import { config } from '../config';
 import SimpleHotGrid from '../components/grid/SimpleHotGrid';
 import { useToast } from '../components/ui/ToastManager';
 
@@ -57,10 +58,11 @@ export default function UsersView() {
   const [users, setUsers] = useState<User[]>([]);
   const [draftUsers, setDraftUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
-  const [resetPasswordDialog, setResetPasswordDialog] = useState<{ open: boolean; userId: number | null; userName: string }>({
+  const [resetPasswordDialog, setResetPasswordDialog] = useState<{ open: boolean; userId: number | null; userName: string; mode: 'manual' | 'debug-auto'; resultPassword?: string }>({
     open: false,
     userId: null,
-    userName: ''
+    userName: '',
+    mode: 'manual'
   });
   const [newPassword, setNewPassword] = useState<string>('');
 
@@ -111,7 +113,7 @@ export default function UsersView() {
       return [];
     }
 
-  const userData = users.map((user: User) => ({
+    const userData = users.map((user: User) => ({
       ...user,
       admin: user.admin ? 'Admin' : 'User',
       niveau: (() => {
@@ -280,7 +282,13 @@ export default function UsersView() {
   };
 
   const handleResetPassword = async () => {
-    if (!resetPasswordDialog.userId || !newPassword) {
+    if (!resetPasswordDialog.userId) {
+      showError('User missing');
+      return;
+    }
+    // In debug mode we hit the endpoint with dummy values; backend will override
+    const pwdToSend = config.DEBUG_NO_VALIDATION ? 'DUMMY' : newPassword;
+    if (!pwdToSend || (!config.DEBUG_NO_VALIDATION && !newPassword)) {
       showError('Password is required');
       return;
     }
@@ -289,7 +297,7 @@ export default function UsersView() {
       setLoading(true);
       await authService.resetUserPassword(resetPasswordDialog.userId, newPassword);
       showSuccess(`Password reset for ${resetPasswordDialog.userName}. User must change password on next login.`);
-      setResetPasswordDialog({ open: false, userId: null, userName: '' });
+  setResetPasswordDialog({ open: false, userId: null, userName: '', mode: 'manual' });
       setNewPassword('');
     } catch (err: any) {
       handleApiError(err);
@@ -346,6 +354,7 @@ export default function UsersView() {
 
   // Validate import data
   const validateImportData = (data: BulkUserData[]): string[] => {
+    if (config.DEBUG_NO_VALIDATION) return []; // Skip validation in debug
     const errors: string[] = [];
     const emails = new Set<string>();
 
@@ -423,8 +432,8 @@ export default function UsersView() {
 
     for (const [index, userData] of dataToImport.entries()) {
       try {
-        // Set hardcoded default password for new users
-        const tempPassword = 'BAZOU';
+  // Use unified configured default password (backend overrides in debug anyway)
+  const tempPassword = config.DEFAULT_PASSWORD;
         const salt = Math.random().toString(36).slice(-16);
         const niveauNum = typeof (userData as any).niveau === 'string' ? parseInt((userData as any).niveau as any, 10) : (userData.niveau ?? 0);
         const entreeIso = userData.entreeFonction ? parseDateFlexible(userData.entreeFonction) : null;
@@ -541,6 +550,22 @@ export default function UsersView() {
           </Select>
         </FormControl>
       ) : <Chip label={p.value === 'Admin' ? 'Admin' : 'User'} color={p.value === 'Admin' ? 'secondary' : 'primary'} size="small" />
+    },
+    {
+      field: 'actions', headerName: 'Actions', width: 140, sortable: false, renderCell: (p: GridRenderCellParams) => (
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Tooltip title="Reset password">
+            <Button size="small" variant="outlined" onClick={() => {
+              setResetPasswordDialog({ open: true, userId: p.row.id, userName: `${p.row.prenom} ${p.row.nom}`, mode: config.DEBUG_NO_VALIDATION ? 'debug-auto' : 'manual' });
+              if (config.DEBUG_NO_VALIDATION) {
+                setTimeout(() => handleResetPassword(), 0);
+              }
+            }}>
+              <LockReset fontSize="small" />
+            </Button>
+          </Tooltip>
+        </Box>
+      )
     }
   ], [isEditable]);
 
@@ -682,32 +707,44 @@ export default function UsersView() {
           </Box>
         </Paper>
 
-        {/* Reset Password Dialog */}
-        <Dialog open={resetPasswordDialog.open} onClose={() => setResetPasswordDialog({ open: false, userId: null, userName: '' })}>
+  {/* Reset Password Dialog */}
+  <Dialog open={resetPasswordDialog.open && resetPasswordDialog.mode === 'manual'} onClose={() => setResetPasswordDialog({ open: false, userId: null, userName: '', mode: 'manual' })}>
           <DialogTitle>Reset Password for {resetPasswordDialog.userName}</DialogTitle>
           <DialogContent>
-            <TextField
-              autoFocus
-              margin="dense"
-              label="New Password"
-              type="password"
-              fullWidth
-              variant="outlined"
-              value={newPassword}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewPassword(e.target.value)}
-              helperText="User will need to change this password on next login"
-            />
+            {config.DEBUG_NO_VALIDATION && (
+              <Alert severity="warning" sx={{ mb: 2 }}>Debug mode active: backend will force default password {config.DEFAULT_PASSWORD}</Alert>
+            )}
+            {!config.DEBUG_NO_VALIDATION && (
+              <TextField
+                autoFocus
+                margin="dense"
+                label="New Password"
+                type="password"
+                fullWidth
+                variant="outlined"
+                value={newPassword}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewPassword(e.target.value)}
+                helperText="User will need to change this password on next login"
+              />
+            )}
           </DialogContent>
           <DialogActions>
             <Button onClick={() => {
-              setResetPasswordDialog({ open: false, userId: null, userName: '' });
+              setResetPasswordDialog({ open: false, userId: null, userName: '', mode: 'manual' });
               setNewPassword('');
             }}>
               Cancel
             </Button>
-            <Button onClick={handleResetPassword} variant="contained" disabled={!newPassword || loading}>
-              Reset Password
-            </Button>
+            {!config.DEBUG_NO_VALIDATION && (
+              <Button onClick={handleResetPassword} variant="contained" disabled={!newPassword || loading}>
+                Reset Password
+              </Button>
+            )}
+            {config.DEBUG_NO_VALIDATION && (
+              <Button onClick={handleResetPassword} variant="contained" disabled={loading}>
+                Force Reset
+              </Button>
+            )}
           </DialogActions>
         </Dialog>
 

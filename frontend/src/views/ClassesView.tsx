@@ -2613,9 +2613,385 @@ const ClassesView: React.FC = () => {
           </Box>{/* end create class form */}
         </DialogContent>
       </Dialog>
-      </Container>
-    </div>
-  );
+
+      {/* Edit Class Dialog */}
+      <Dialog 
+        open={isEditDialogOpen} 
+        onClose={() => setIsEditDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            bgcolor: '#1e1e1e',
+            color: 'white'
+          }
+        }}
+      >
+        <DialogTitle sx={{ bgcolor: 'var(--color-bg-secondary)', color: 'var(--color-text-primary)', borderBottom: '1px solid var(--color-border-light)' }}>
+          Modifier la classe
+        </DialogTitle>
+        <DialogContent sx={{ bgcolor: 'var(--color-bg-primary)' }}>
+          <Box component="form" onSubmit={(e) => { e.preventDefault(); handleUpdateClass(); }} sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+            <TextField
+              label="Nom de la classe"
+              value={classForm.nom}
+              onChange={(e) => setClassForm(prev => ({ ...prev, nom: e.target.value }))}
+              placeholder="Ex: Programmation Python Débutant"
+              fullWidth
+              sx={{
+                '& .MuiInputBase-root': { bgcolor: 'var(--color-bg-secondary)', color: 'var(--color-text-primary)' },
+                '& .MuiInputLabel-root': { color: 'var(--color-text-secondary)' },
+                '& .MuiOutlinedInput-root': {
+                  '& fieldset': { borderColor: 'var(--color-border-light)' },
+                  '&:hover fieldset': { borderColor: 'var(--color-border-medium)' },
+                  '&.Mui-focused fieldset': { borderColor: 'var(--color-primary-500)' }
+                }
+              }}
+            />
+            
+            <TextField
+              label="Description"
+              value={classForm.description}
+              onChange={(e) => setClassForm(prev => ({ ...prev, description: e.target.value }))}
+              placeholder="Description de la classe..."
+              multiline
+              rows={3}
+              fullWidth
+              sx={{
+                '& .MuiInputBase-root': { bgcolor: '#2d2d2d', color: 'white' },
+                '& .MuiInputLabel-root': { color: '#bdbdbd' },
+                '& .MuiOutlinedInput-root': {
+                  '& fieldset': { borderColor: '#444' },
+                  '&:hover fieldset': { borderColor: '#666' },
+                  '&.Mui-focused fieldset': { borderColor: '#90caf9' }
+                }
+              }}
+            />
+            
+            <FormControl 
+              fullWidth
+              sx={{
+                '& .MuiInputBase-root': { bgcolor: '#2d2d2d', color: 'white' },
+                '& .MuiInputLabel-root': { color: '#bdbdbd' },
+                '& .MuiOutlinedInput-root': {
+                  '& fieldset': { borderColor: '#444' },
+                  '&:hover fieldset': { borderColor: '#666' },
+                  '&.Mui-focused fieldset': { borderColor: '#90caf9' }
+                }
+              }}
+            >
+              <InputLabel sx={{ color: '#bdbdbd' }}>Niveau</InputLabel>
+              <Select
+                value={classForm.level}
+                label="Niveau"
+                onChange={(e) => setClassForm(prev => ({ ...prev, level: e.target.value }))}
+                sx={{ color: 'white' }}
+              >
+                <MenuItem value="" sx={{ bgcolor: '#2d2d2d', color: 'white', '&:hover': { bgcolor: '#3d3d3d' } }}>
+                  <em>Aucun</em>
+                </MenuItem>
+                {levelSettings.filter(setting => setting.active).map(setting => (
+                  <MenuItem key={setting.id} value={setting.value} sx={{ bgcolor: '#2d2d2d', color: 'white', '&:hover': { bgcolor: '#3d3d3d' } }}>
+                    {setting.label || setting.value}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            
+            <FormControl 
+              fullWidth
+              sx={{
+                '& .MuiInputBase-root': { bgcolor: '#2d2d2d', color: 'white' },
+                '& .MuiInputLabel-root': { color: '#bdbdbd' },
+                '& .MuiOutlinedInput-root': {
+                  '& fieldset': { borderColor: '#444' },
+                  '&:hover fieldset': { borderColor: '#666' },
+                  '&.Mui-focused fieldset': { borderColor: '#90caf9' }
+                }
+              }}
+            >
+              <InputLabel sx={{ color: '#bdbdbd' }}>Type de cours</InputLabel>
+              <Select
+                value={classForm.typeCours}
+                label="Type de cours"
+                onChange={(e) => setClassForm(prev => ({ ...prev, typeCours: e.target.value }))}
+                sx={{ color: 'white' }}
+              >
+                <MenuItem value="" sx={{ bgcolor: '#2d2d2d', color: 'white', '&:hover': { bgcolor: '#3d3d3d' } }}>
+                  <em>Aucun</em>
+                </MenuItem>
+                {typeCoursSettings.filter(setting => setting.active).map(setting => (
+                  <MenuItem key={setting.id} value={setting.value} sx={{ bgcolor: '#2d2d2d', color: 'white', '&:hover': { bgcolor: '#3d3d3d' } }}>
+                    {setting.label || setting.value}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            
+            <FormControl 
+              fullWidth
+              sx={{
+                '& .MuiInputBase-root': { bgcolor: '#2d2d2d', color: 'white' },
+                '& .MuiInputLabel-root': { color: '#bdbdbd' },
+                '& .MuiOutlinedInput-root': {
+                  '& fieldset': { borderColor: '#444' },
+                  '&:hover fieldset': { borderColor: '#666' },
+                  '&.Mui-focused fieldset': { borderColor: '#90caf9' }
+                }
+              }}
+            >
+              <InputLabel sx={{ color: '#bdbdbd' }}>Emplacement</InputLabel>
+              <Select
+                value={classForm.location}
+                label="Emplacement"
+                onChange={(e) => setClassForm(prev => ({ ...prev, location: e.target.value }))}
+                sx={{ color: 'white' }}
+              >
+                <MenuItem value="" sx={{ bgcolor: '#2d2d2d', color: 'white', '&:hover': { bgcolor: '#3d3d3d' } }}>
+                  <em>Aucun</em>
+                </MenuItem>
+                {locationSettings.filter(setting => setting.active).map(setting => (
+                  <MenuItem key={setting.id} value={setting.value} sx={{ bgcolor: '#2d2d2d', color: 'white', '&:hover': { bgcolor: '#3d3d3d' } }}>
+                    {setting.label || setting.value}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            
+            <FormControl 
+              fullWidth
+              sx={{
+                '& .MuiInputBase-root': { bgcolor: '#2d2d2d', color: 'white' },
+                '& .MuiInputLabel-root': { color: '#bdbdbd' },
+                '& .MuiOutlinedInput-root': {
+                  '& fieldset': { borderColor: '#444' },
+                  '&:hover fieldset': { borderColor: '#666' },
+                  '&.Mui-focused fieldset': { borderColor: '#90caf9' }
+                }
+              }}
+            >
+              <InputLabel sx={{ color: '#bdbdbd' }}>Salle</InputLabel>
+              <Select
+                value={classForm.salle}
+                label="Salle"
+                onChange={(e) => setClassForm(prev => ({ ...prev, salle: e.target.value }))}
+                sx={{ color: 'white' }}
+              >
+                <MenuItem value="" sx={{ bgcolor: '#2d2d2d', color: 'white', '&:hover': { bgcolor: '#3d3d3d' } }}>
+                  <em>Aucun</em>
+                </MenuItem>
+                {salleSettings.filter(setting => setting.active).map(setting => (
+                  <MenuItem key={setting.id} value={setting.value} sx={{ bgcolor: '#2d2d2d', color: 'white', '&:hover': { bgcolor: '#3d3d3d' } }}>
+                    {setting.label || setting.value}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            
+            <FormControl 
+              fullWidth
+              sx={{
+                '& .MuiInputBase-root': { bgcolor: '#2d2d2d', color: 'white' },
+                '& .MuiInputLabel-root': { color: '#bdbdbd' },
+                '& .MuiOutlinedInput-root': {
+                  '& fieldset': { borderColor: '#444' },
+                  '&:hover fieldset': { borderColor: '#666' },
+                  '&.Mui-focused fieldset': { borderColor: '#90caf9' }
+                }
+              }}
+            >
+              <InputLabel sx={{ color: '#bdbdbd' }}>Enseignant</InputLabel>
+              <Select
+                value={classForm.teacherId}
+                label="Enseignant"
+                onChange={(e) => setClassForm(prev => ({ ...prev, teacherId: Number(e.target.value) }))}
+                sx={{ color: 'white' }}
+              >
+                {teachers.map(teacher => (
+                  <MenuItem key={teacher.id} value={teacher.id} sx={{ bgcolor: '#2d2d2d', color: 'white', '&:hover': { bgcolor: '#3d3d3d' } }}>
+                    {teacher.prenom} {teacher.nom}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            
+            <TextField
+              label="Durée des séances (minutes)"
+              type="number"
+              value={classForm.dureeSeance}
+              onChange={(e) => setClassForm(prev => ({ ...prev, dureeSeance: parseInt(e.target.value) }))}
+              inputProps={{ min: 1 }}
+              fullWidth
+              sx={{
+                '& .MuiInputBase-root': { bgcolor: '#2d2d2d', color: 'white' },
+                '& .MuiInputLabel-root': { color: '#bdbdbd' },
+                '& .MuiOutlinedInput-root': {
+                  '& fieldset': { borderColor: '#444' },
+                  '&:hover fieldset': { borderColor: '#666' },
+                  '&.Mui-focused fieldset': { borderColor: '#90caf9' }
+                }
+              }}
+            />
+
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={!!classForm.rrPossibles}
+                  onChange={(e) => setClassForm(prev => ({ ...prev, rrPossibles: e.target.checked }))}
+                  sx={{ color: '#bdbdbd' }}
+                />
+              }
+              label="RR possibles"
+            />
+
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={!!classForm.isRecuperation}
+                  onChange={(e) => setClassForm(prev => ({ ...prev, isRecuperation: e.target.checked }))}
+                  sx={{ color: '#bdbdbd' }}
+                />
+              }
+              label="Classe de récupération (cours du soir)"
+            />
+            
+            <Box display="flex" gap={2} flexWrap="wrap">
+              <FormControl 
+                sx={{
+                  minWidth: 180,
+                  flex: '1 1 180px',
+                  '& .MuiInputBase-root': { bgcolor: '#2d2d2d', color: 'white' },
+                  '& .MuiInputLabel-root': { color: '#bdbdbd' },
+                  '& .MuiOutlinedInput-root': {
+                    '& fieldset': { borderColor: '#444' },
+                    '&:hover fieldset': { borderColor: '#666' },
+                    '&.Mui-focused fieldset': { borderColor: '#90caf9' }
+                  }
+                }}
+              >
+                <InputLabel sx={{ color: '#bdbdbd' }}>Jour</InputLabel>
+                <Select
+                  value={classForm.jourSemaine}
+                  label="Jour"
+                  onChange={(e) => setClassForm(prev => ({ ...prev, jourSemaine: Number(e.target.value) }))}
+                  sx={{ color: 'white' }}
+                >
+                  {[1,2,3,4,5,6,0].map(d => (
+                    <MenuItem key={d} value={d} sx={{ bgcolor: '#2d2d2d', color: 'white', '&:hover': { bgcolor: '#3d3d3d' } }}>
+                      {['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'][d === 0 ? 0 : d] /* index mapping */}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+
+              <TextField
+                label="Heure début (HH:MM)"
+                value={classForm.heureDebut}
+                onChange={(e) => setClassForm(prev => ({ ...prev, heureDebut: e.target.value }))}
+                placeholder="09:00"
+                sx={{
+                  minWidth: 160,
+                  flex: '1 1 140px',
+                  '& .MuiInputBase-root': { bgcolor: '#2d2d2d', color: 'white' },
+                  '& .MuiInputLabel-root': { color: '#bdbdbd' },
+                  '& .MuiOutlinedInput-root': {
+                    '& fieldset': { borderColor: '#444' },
+                    '&:hover fieldset': { borderColor: '#666' },
+                    '&.Mui-focused fieldset': { borderColor: '#90caf9' }
+                  }
+                }}
+              />
+
+              <TextField
+                label="Semaines (année courante)"
+                placeholder="1,2,3,5,12"
+                helperText="Liste séparée par des virgules (1-52)"
+                value={weekNumbers}
+                onChange={(e) => setWeekNumbers(e.target.value)}
+                sx={{
+                  flex: '2 1 300px',
+                  '& .MuiInputBase-root': { bgcolor: '#2d2d2d', color: 'white' },
+                  '& .MuiInputLabel-root': { color: '#bdbdbd' },
+                  '& .MuiFormHelperText-root': { color: '#bdbdbd' },
+                  '& .MuiOutlinedInput-root': {
+                    '& fieldset': { borderColor: '#444' },
+                    '&:hover fieldset': { borderColor: '#666' },
+                    '&.Mui-focused fieldset': { borderColor: '#90caf9' }
+                  }
+                }}
+              />
+
+              <TextField
+                label="Semaines (année suivante)"
+                placeholder="1,2,3"
+                helperText="Optionnel - semaines de l'année prochaine"
+                value={nextYearWeekNumbers}
+                onChange={(e) => setNextYearWeekNumbers(e.target.value)}
+                sx={{
+                  flex: '2 1 300px',
+                  '& .MuiInputBase-root': { bgcolor: '#2d2d2d', color: 'white' },
+                  '& .MuiInputLabel-root': { color: '#bdbdbd' },
+                  '& .MuiFormHelperText-root': { color: '#bdbdbd' },
+                  '& .MuiOutlinedInput-root': {
+                    '& fieldset': { borderColor: '#444' },
+                    '&:hover fieldset': { borderColor: '#666' },
+                    '&.Mui-focused fieldset': { borderColor: '#90caf9' }
+                  }
+                }}
+              />
+
+              <Autocomplete
+                multiple
+                options={students}
+                value={students.filter(s => (classForm.eleveIds || []).includes(s.id))}
+                onChange={(_, newValue) => {
+                  setClassForm(prev => ({ ...prev, eleveIds: newValue.map(v => v.id) }));
+                }}
+                disableCloseOnSelect
+                getOptionLabel={(o) => `${o.prenom} ${o.nom}`}
+                isOptionEqualToValue={(o, v) => o.id === v.id}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Élèves"
+                    placeholder="Sélectionner des élèves"
+                    sx={{
+                      '& .MuiInputBase-root': { bgcolor: '#2d2d2d', color: 'white' },
+                      '& .MuiInputLabel-root': { color: '#bdbdbd' },
+                      '& .MuiOutlinedInput-root': {
+                        '& fieldset': { borderColor: '#444' },
+                        '&:hover fieldset': { borderColor: '#666' },
+                        '&.Mui-focused fieldset': { borderColor: '#90caf9' }
+                      }
+                    }}
+                  />
+                )}
+                sx={{
+                  flex: '1 1 400px',
+                  '& .MuiChip-root': { bgcolor: '#1976d2', color: 'white' }
+                }}
+              />
+            </Box>
+
+            <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 2 }}>
+              <Button
+                onClick={() => setIsEditDialogOpen(false)}
+                variant="outlined"
+                sx={{ borderColor: '#444', color: 'white', '&:hover': { borderColor: '#666', bgcolor: '#2a2a2a' } }}
+              >Annuler</Button>
+              <Button
+                type="submit"
+                variant="contained"
+                sx={{ bgcolor: '#1976d2', '&:hover': { bgcolor: '#1565c0' } }}
+              >Modifier</Button>
+            </Box>
+          </Box>{/* end edit class form */}
+        </DialogContent>
+      </Dialog>
+    </Container>
+  </div>
+);
+
 };
 
 export default ClassesView;

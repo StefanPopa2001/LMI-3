@@ -1,7 +1,8 @@
 // Authentication and API service for user management
 import CryptoJS from 'crypto-js';
+import { config } from '../config';
 
-const API_URL = 'http://localhost:4000';
+const API_URL = config.API_URL;
 
 interface LoginResponse {
   token: string;
@@ -131,8 +132,18 @@ class AuthService {
   }
 
   async changePassword(currentPassword: string, newPassword: string): Promise<void> {
-    const salt = this.generateSalt();
-    const hashedCurrentPassword = currentPassword ? this.hashPassword(currentPassword, this.user?.sel || '') : '';
+    // Ensure we have a salt for the current user. If the frontend doesn't have it (e.g., hydrated from server without sel), fetch it.
+    let salt = this.user?.sel;
+    if (!salt) {
+      try {
+        salt = await this.getSalt(this.user?.email || '');
+      } catch (e) {
+        // Fallback to generating a new salt for the new password if we can't fetch current salt
+        salt = this.generateSalt();
+      }
+    }
+
+    const hashedCurrentPassword = currentPassword && this.user?.sel ? this.hashPassword(currentPassword, this.user.sel) : '';
     const hashedNewPassword = this.hashPassword(newPassword, salt);
 
     await this.makeRequest('/users/changePassword', {
@@ -248,6 +259,15 @@ class AuthService {
     });
   }
 
+  async resetUserPasswordWithResponse(id: number, newPassword: string): Promise<any> {
+    const salt = this.generateSalt();
+    const hashedPassword = this.hashPassword(newPassword, salt);
+    return this.makeRequest(`/admin/users/${id}/resetPassword`, {
+      method: 'POST',
+      body: JSON.stringify({ newPassword: hashedPassword, salt }),
+    });
+  }
+
   async activateUser(id: number): Promise<void> {
     return this.makeRequest(`/admin/users/${id}/activate`, {
       method: 'PUT',
@@ -255,7 +275,8 @@ class AuthService {
   }
 
   async deactivateUser(id: number): Promise<void> {
-    return this.makeRequest(`/users/${id}/deactivate`, {
+    // Backend expects admin route for deactivate
+    return this.makeRequest(`/admin/users/${id}/deactivate`, {
       method: 'PUT',
     });
   }

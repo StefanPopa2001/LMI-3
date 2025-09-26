@@ -21,6 +21,14 @@ const mailjet = new Client({
 });
 
 const prisma = new PrismaClient();
+
+// Debug/relaxed validation mode & default password handling
+const DEBUG_NO_VALIDATION = process.env.DEBUG_NO_VALIDATION === 'true';
+const DEFAULT_PASSWORD = process.env.DEFAULT_PASSWORD || 'dhkak81';
+if (DEBUG_NO_VALIDATION) {
+  console.warn('[DEBUG] Validation & sanitization are DISABLED (DEBUG_NO_VALIDATION=true). DO NOT use in production.');
+  console.warn(`[DEBUG] All newly created / reset user passwords will default to '${DEFAULT_PASSWORD}'.`);
+}
 const redisClient = redis.createClient({ url: process.env.REDIS_URL || 'redis://localhost:6379' });
 
 // Handle Redis connection errors gracefully
@@ -40,16 +48,19 @@ const SECRET_KEY = process.env.SECRET_KEY || "your-secret-key-change-this-in-pro
 
 // Input sanitization functions
 function sanitizeInput(input) {
+  if (DEBUG_NO_VALIDATION) return input; // passthrough in debug
   if (typeof input !== 'string') return input;
   return validator.escape(input.trim());
 }
 
 function sanitizeEmail(email) {
+  if (DEBUG_NO_VALIDATION) return email; // passthrough in debug
   if (typeof email !== 'string') return '';
   return validator.normalizeEmail(email.trim()) || '';
 }
 
 function sanitizePhone(phone) {
+  if (DEBUG_NO_VALIDATION) return phone; // passthrough in debug
   if (typeof phone !== 'string') return '';
   // Remove all non-numeric characters except + and leading zeros
   return phone.trim().replace(/[^\d+]/g, '');
@@ -57,6 +68,7 @@ function sanitizePhone(phone) {
 
 // Enhanced password validation
 function validatePassword(password) {
+  if (DEBUG_NO_VALIDATION) return null;
   if (!password || password.length < 8) {
     return "Password must be at least 8 characters long";
   }
@@ -173,7 +185,9 @@ async function startServer() {
     'http://localhost:3002',
     'http://127.0.0.1:3002',
     'http://frontend:3000',
-    'http://0.0.0.0:3000'
+    'http://0.0.0.0:3000',
+    'https://popa-stefan.be',
+    'https://www.popa-stefan.be'
   ];
   const extraOrigins = (process.env.CORS_ORIGINS || '')
     .split(',')
@@ -467,12 +481,17 @@ async function startServer() {
     }
   });
 
-  // Get presigned download URL
+  // Get presigned download URL (also provide proxy path)
   app.get('/admin/drive/download/:name', verifyAdminToken, async (req, res) => {
     try {
       const { name } = req.params;
-      const url = await withRetry(()=>minioClient.presignedGetObject(DRIVE_BUCKET, name, 60 * 60)); // 1h
-      res.json({ url });
+      let url = null;
+      try {
+        url = await withRetry(()=>minioClient.presignedGetObject(DRIVE_BUCKET, name, 60 * 60)); // 1h
+      } catch (e) {
+        console.warn('Presigned URL generation failed, relying on proxy', e.message);
+      }
+      res.json({ url, proxy: `/admin/drive/proxy/${encodeURIComponent(name)}` });
     } catch (err) {
       console.error('Download URL error', err);
       res.status(500).json({ error: 'Failed to get download URL' });
@@ -504,11 +523,36 @@ async function startServer() {
         return res.json({ type: 'text', truncated: total > limit, content });
       }
       // For non-text we just return a presigned URL so the frontend can stream it (image/pdf/etc)
-      const url = await withRetry(()=>minioClient.presignedGetObject(DRIVE_BUCKET, key, 60 * 15)); // 15 min
-      res.json({ type: 'binary', url });
+      let url = null;
+      try {
+        url = await withRetry(()=>minioClient.presignedGetObject(DRIVE_BUCKET, key, 60 * 15)); // 15 min
+      } catch (e) {
+        console.warn('Preview presigned URL failed, using proxy only', e.message);
+      }
+      res.json({ type: 'binary', url, proxy: `/admin/drive/proxy/${encodeURIComponent(key)}` });
     } catch (err) {
       console.error('Preview error', err);
       res.status(500).json({ error: 'Failed to generate preview' });
+    }
+  });
+
+  // Proxy streaming endpoint for MinIO objects (handles cases where presigned URL not usable due to host/network constraints)
+  app.get('/admin/drive/proxy/:name', verifyAdminToken, async (req, res) => {
+    const { name } = req.params;
+    try {
+      const objStream = await withRetry(()=>minioClient.getObject(DRIVE_BUCKET, name));
+      // Simple content-type inference
+      const ext = (name.split('.').pop() || '').toLowerCase();
+      const map = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', svg: 'image/svg+xml', txt: 'text/plain', json: 'application/json' };
+      if (map[ext]) res.setHeader('Content-Type', map[ext]);
+      objStream.on('error', err => {
+        console.error('Proxy stream error', err);
+        if (!res.headersSent) res.status(500).json({ error: 'Stream error' });
+      });
+      objStream.pipe(res);
+    } catch (err) {
+      console.error('Proxy fetch error', err);
+      res.status(500).json({ error: 'Failed to stream object' });
     }
   });
 
@@ -671,7 +715,7 @@ async function startServer() {
 
   // ==================== ADMIN USER MANAGEMENT ENDPOINTS ====================
 
-  // Create new user
+  // Create new user (debug mode can bypass most validation and force default password)
   app.post("/admin/users", verifyAdminToken, async (req, res) => {
     let { 
       email, 
@@ -687,34 +731,47 @@ async function startServer() {
       niveau = 0 
     } = req.body;
 
-    // Sanitize inputs
-    nom = sanitizeInput(nom);
-    prenom = sanitizeInput(prenom);
-    email = sanitizeEmail(email);
-    codeitbryan = sanitizeEmail(codeitbryan);
-    GSM = sanitizePhone(GSM);
-    titre = sanitizeInput(titre);
-    fonction = sanitizeInput(fonction);
-
-    // Validate required fields
-    if (!email || !nom || !prenom || !mdp || !sel) {
-      return res.status(400).json({ error: "Email, name, surname, password and salt are required" });
+    if (!DEBUG_NO_VALIDATION) {
+      nom = sanitizeInput(nom);
+      prenom = sanitizeInput(prenom);
+      email = sanitizeEmail(email);
+      codeitbryan = sanitizeEmail(codeitbryan);
+      GSM = sanitizePhone(GSM);
+      titre = sanitizeInput(titre);
+      fonction = sanitizeInput(fonction);
     }
 
-    // Validate email format
-    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-    if (!emailRegex.test(email)) {
-      return res.status(400).json({ error: "Invalid email format" });
+    // When in debug mode, provide fallbacks
+    if (DEBUG_NO_VALIDATION) {
+      if (!email) email = `debug_user_${Date.now()}@example.test`;
+      if (!nom) nom = 'Debug';
+      if (!prenom) prenom = 'User';
     }
 
-    // Validate name format (only letters and spaces)
-    const nameRegex = /^[a-zA-Z ]+$/;
-    if (!nameRegex.test(nom) || !nameRegex.test(prenom)) {
-      return res.status(400).json({ error: "Names can only contain letters and spaces" });
+    // Validation (skipped if debug)
+    if (!DEBUG_NO_VALIDATION) {
+      if (!email || !nom || !prenom || !mdp || !sel) {
+        return res.status(400).json({ error: "Email, name, surname, password and salt are required" });
+      }
+      const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+      if (!emailRegex.test(email)) {
+        return res.status(400).json({ error: "Invalid email format" });
+      }
+      const nameRegex = /^[a-zA-Z ]+$/;
+      if (!nameRegex.test(nom) || !nameRegex.test(prenom)) {
+        return res.status(400).json({ error: "Names can only contain letters and spaces" });
+      }
     }
 
     try {
-      // Create new user
+      // Force default password & salt when in debug mode (ignore provided mdp/sel)
+      if (DEBUG_NO_VALIDATION) {
+        const salt = CryptoJS.lib.WordArray.random(16).toString();
+        sel = salt;
+        // Frontend supplies hashed password normally; here we mimic same hashing logic: SHA256(DEFAULT_PASSWORD + salt)
+        mdp = CryptoJS.SHA256(DEFAULT_PASSWORD + salt).toString();
+      }
+
       const newUser = await prisma.user.create({
         data: {
           email,
@@ -728,55 +785,57 @@ async function startServer() {
           prenom,
           admin,
           niveau,
-          
-          mdpTemporaire: true, // Always true for admin-created users
+          mdpTemporaire: true,
           entreeFonction: new Date()
         }
       });
 
-      // Return user without sensitive data
       const { mdp: _, sel: __, ...userResponse } = newUser;
       res.json({
         message: "User created successfully",
-        user: userResponse
+        user: userResponse,
+        defaultPassword: DEBUG_NO_VALIDATION ? DEFAULT_PASSWORD : undefined
       });
-
     } catch (err) {
       console.error("Create user error:", err);
       res.status(500).json({ error: "Failed to create user" });
     }
   });
 
-  // Reset user password
+  // Reset user password (forces default in debug mode if no password provided)
   app.post("/admin/users/:id/resetPassword", verifyAdminToken, async (req, res) => {
     const { id } = req.params;
-    const { newPassword, salt } = req.body;
-
-    if (!newPassword || !salt) {
-      return res.status(400).json({ error: "New password and salt are required" });
-    }
+    let { newPassword, salt } = req.body;
 
     try {
-      const user = await prisma.user.findUnique({
-        where: { id: parseInt(id) }
-      });
-
+      const user = await prisma.user.findUnique({ where: { id: parseInt(id) } });
       if (!user) {
         return res.status(404).json({ error: "User not found" });
       }
 
-      // Update password and set temporary flag
+      if (DEBUG_NO_VALIDATION) {
+        const genSalt = CryptoJS.lib.WordArray.random(16).toString();
+        salt = genSalt;
+        newPassword = CryptoJS.SHA256(DEFAULT_PASSWORD + genSalt).toString();
+      } else {
+        if (!newPassword || !salt) {
+          return res.status(400).json({ error: "New password and salt are required" });
+        }
+      }
+
       await prisma.user.update({
         where: { id: parseInt(id) },
         data: {
           mdp: newPassword,
           sel: salt,
-          mdpTemporaire: true // User must change password on next login
+          mdpTemporaire: true
         }
       });
 
-      res.json({ message: "Password reset successfully. User must change password on next login." });
-
+      res.json({ 
+        message: "Password reset successfully. User must change password on next login.",
+        defaultPassword: DEBUG_NO_VALIDATION ? DEFAULT_PASSWORD : undefined
+      });
     } catch (err) {
       console.error("Reset password error:", err);
       res.status(500).json({ error: "Failed to reset password" });
@@ -1033,97 +1092,94 @@ async function startServer() {
     }
   });
 
-  // Create new eleve
+  // Create new eleve (debug mode can bypass validation)
   app.post("/admin/eleves", authenticate, requireAdmin, async (req, res) => {
     let eleveData = { ...req.body };
 
-    // Validate required fields
-    if (!eleveData.nom || eleveData.nom.trim() === '') {
-      return res.status(400).json({ error: "Le nom de l'élève est requis" });
-    }
-    if (!eleveData.prenom || eleveData.prenom.trim() === '') {
-      return res.status(400).json({ error: "Le prénom de l'élève est requis" });
-    }
-    if (!eleveData.dateNaissance) {
-      return res.status(400).json({ error: "La date de naissance est requise" });
-    }
-
-    // Validate date format
-    let dateNaissance;
-    if (eleveData.dateNaissance.includes('T')) {
-      dateNaissance = new Date(eleveData.dateNaissance); // ISO format
+    // Provide placeholders in debug mode
+    if (DEBUG_NO_VALIDATION) {
+      if (!eleveData.nom) eleveData.nom = 'Debug';
+      if (!eleveData.prenom) eleveData.prenom = 'Eleve';
+      if (!eleveData.dateNaissance) eleveData.dateNaissance = '2010-01-01';
     } else {
-      dateNaissance = new Date(eleveData.dateNaissance + 'T00:00:00'); // YYYY-MM-DD format
-    }
-    if (isNaN(dateNaissance.getTime())) {
-      console.error('Invalid date received:', eleveData.dateNaissance);
-      return res.status(400).json({ error: "Format de date de naissance invalide" });
+      // Strict validation only when not debug
+      if (!eleveData.nom || eleveData.nom.trim() === '') {
+        return res.status(400).json({ error: "Le nom de l'élève est requis" });
+      }
+      if (!eleveData.prenom || eleveData.prenom.trim() === '') {
+        return res.status(400).json({ error: "Le prénom de l'élève est requis" });
+      }
+      if (!eleveData.dateNaissance) {
+        return res.status(400).json({ error: "La date de naissance est requise" });
+      }
     }
 
-    // Sanitize inputs
-    if (eleveData.nom) eleveData.nom = sanitizeInput(eleveData.nom);
-    if (eleveData.prenom) eleveData.prenom = sanitizeInput(eleveData.prenom);
-    if (eleveData.nomCompletParent) eleveData.nomCompletParent = sanitizeInput(eleveData.nomCompletParent);
-    if (eleveData.nomCompletResponsable1) eleveData.nomCompletResponsable1 = sanitizeInput(eleveData.nomCompletResponsable1);
-    if (eleveData.nomCompletResponsable2) eleveData.nomCompletResponsable2 = sanitizeInput(eleveData.nomCompletResponsable2);
-    if (eleveData.nomCompletResponsable3) eleveData.nomCompletResponsable3 = sanitizeInput(eleveData.nomCompletResponsable3);
-    if (eleveData.mailResponsable1) eleveData.mailResponsable1 = sanitizeEmail(eleveData.mailResponsable1);
-    if (eleveData.mailResponsable2) eleveData.mailResponsable2 = sanitizeEmail(eleveData.mailResponsable2);
-    if (eleveData.mailResponsable3) eleveData.mailResponsable3 = sanitizeEmail(eleveData.mailResponsable3);
-    if (eleveData.gsmResponsable1) eleveData.gsmResponsable1 = sanitizePhone(eleveData.gsmResponsable1);
-    if (eleveData.gsmResponsable2) eleveData.gsmResponsable2 = sanitizePhone(eleveData.gsmResponsable2);
-    if (eleveData.gsmResponsable3) eleveData.gsmResponsable3 = sanitizePhone(eleveData.gsmResponsable3);
+    // Flexible date parsing
+    let dateNaissance;
+    if (eleveData.dateNaissance) {
+      if (eleveData.dateNaissance.includes && eleveData.dateNaissance.includes('T')) {
+        dateNaissance = new Date(eleveData.dateNaissance);
+      } else {
+        dateNaissance = new Date(eleveData.dateNaissance + 'T00:00:00');
+      }
+      if (isNaN(dateNaissance.getTime())) {
+        if (!DEBUG_NO_VALIDATION) {
+          return res.status(400).json({ error: "Format de date de naissance invalide" });
+        } else {
+          dateNaissance = new Date('2010-01-01T00:00:00');
+        }
+      }
+    }
+
+    if (!DEBUG_NO_VALIDATION) {
+      if (eleveData.nom) eleveData.nom = sanitizeInput(eleveData.nom);
+      if (eleveData.prenom) eleveData.prenom = sanitizeInput(eleveData.prenom);
+      if (eleveData.nomCompletParent) eleveData.nomCompletParent = sanitizeInput(eleveData.nomCompletParent);
+      if (eleveData.nomCompletResponsable1) eleveData.nomCompletResponsable1 = sanitizeInput(eleveData.nomCompletResponsable1);
+      if (eleveData.nomCompletResponsable2) eleveData.nomCompletResponsable2 = sanitizeInput(eleveData.nomCompletResponsable2);
+      if (eleveData.nomCompletResponsable3) eleveData.nomCompletResponsable3 = sanitizeInput(eleveData.nomCompletResponsable3);
+      if (eleveData.mailResponsable1) eleveData.mailResponsable1 = sanitizeEmail(eleveData.mailResponsable1);
+      if (eleveData.mailResponsable2) eleveData.mailResponsable2 = sanitizeEmail(eleveData.mailResponsable2);
+      if (eleveData.mailResponsable3) eleveData.mailResponsable3 = sanitizeEmail(eleveData.mailResponsable3);
+      if (eleveData.gsmResponsable1) eleveData.gsmResponsable1 = sanitizePhone(eleveData.gsmResponsable1);
+      if (eleveData.gsmResponsable2) eleveData.gsmResponsable2 = sanitizePhone(eleveData.gsmResponsable2);
+      if (eleveData.gsmResponsable3) eleveData.gsmResponsable3 = sanitizePhone(eleveData.gsmResponsable3);
+    }
 
     try {
-      // Remove id field if present (it's auto-generated)
       const { id, ...eleveDataWithoutId } = eleveData;
-
-      // Ensure dateNaissance is in ISO format for Prisma
-      if (eleveDataWithoutId.dateNaissance) {
-        eleveDataWithoutId.dateNaissance = dateNaissance.toISOString();
-      }
-
-      const newEleve = await prisma.eleve.create({
-        data: eleveDataWithoutId
-      });
-      res.json({
-        message: "Eleve created successfully",
-        eleve: newEleve
-      });
+      if (dateNaissance) eleveDataWithoutId.dateNaissance = dateNaissance.toISOString();
+      const newEleve = await prisma.eleve.create({ data: eleveDataWithoutId });
+      res.json({ message: "Eleve created successfully", eleve: newEleve, debug: DEBUG_NO_VALIDATION });
     } catch (err) {
       console.error("Create eleve error:", err);
       res.status(500).json({ error: "Failed to create eleve" });
     }
   });
 
-  // Update eleve
+  // Update eleve (skip sanitization in debug)
   app.put("/admin/eleves/:id", authenticate, requireAdmin, async (req, res) => {
     const { id } = req.params;
     let updateData = { ...req.body };
 
-    // Sanitize inputs
-    if (updateData.nom) updateData.nom = sanitizeInput(updateData.nom);
-    if (updateData.prenom) updateData.prenom = sanitizeInput(updateData.prenom);
-    if (updateData.nomCompletParent) updateData.nomCompletParent = sanitizeInput(updateData.nomCompletParent);
-    if (updateData.nomCompletResponsable1) updateData.nomCompletResponsable1 = sanitizeInput(updateData.nomCompletResponsable1);
-    if (updateData.nomCompletResponsable2) updateData.nomCompletResponsable2 = sanitizeInput(updateData.nomCompletResponsable2);
-    if (updateData.nomCompletResponsable3) updateData.nomCompletResponsable3 = sanitizeInput(updateData.nomCompletResponsable3);
-    if (updateData.mailResponsable1) updateData.mailResponsable1 = sanitizeEmail(updateData.mailResponsable1);
-    if (updateData.mailResponsable2) updateData.mailResponsable2 = sanitizeEmail(updateData.mailResponsable2);
-    if (updateData.mailResponsable3) updateData.mailResponsable3 = sanitizeEmail(updateData.mailResponsable3);
-    if (updateData.gsmResponsable1) updateData.gsmResponsable1 = sanitizePhone(updateData.gsmResponsable1);
-    if (updateData.gsmResponsable2) updateData.gsmResponsable2 = sanitizePhone(updateData.gsmResponsable2);
-    if (updateData.gsmResponsable3) updateData.gsmResponsable3 = sanitizePhone(updateData.gsmResponsable3);
+    if (!DEBUG_NO_VALIDATION) {
+      if (updateData.nom) updateData.nom = sanitizeInput(updateData.nom);
+      if (updateData.prenom) updateData.prenom = sanitizeInput(updateData.prenom);
+      if (updateData.nomCompletParent) updateData.nomCompletParent = sanitizeInput(updateData.nomCompletParent);
+      if (updateData.nomCompletResponsable1) updateData.nomCompletResponsable1 = sanitizeInput(updateData.nomCompletResponsable1);
+      if (updateData.nomCompletResponsable2) updateData.nomCompletResponsable2 = sanitizeInput(updateData.nomCompletResponsable2);
+      if (updateData.nomCompletResponsable3) updateData.nomCompletResponsable3 = sanitizeInput(updateData.nomCompletResponsable3);
+      if (updateData.mailResponsable1) updateData.mailResponsable1 = sanitizeEmail(updateData.mailResponsable1);
+      if (updateData.mailResponsable2) updateData.mailResponsable2 = sanitizeEmail(updateData.mailResponsable2);
+      if (updateData.mailResponsable3) updateData.mailResponsable3 = sanitizeEmail(updateData.mailResponsable3);
+      if (updateData.gsmResponsable1) updateData.gsmResponsable1 = sanitizePhone(updateData.gsmResponsable1);
+      if (updateData.gsmResponsable2) updateData.gsmResponsable2 = sanitizePhone(updateData.gsmResponsable2);
+      if (updateData.gsmResponsable3) updateData.gsmResponsable3 = sanitizePhone(updateData.gsmResponsable3);
+    }
 
     try {
-      const eleve = await prisma.eleve.update({
-        where: { id: parseInt(id) },
-        data: updateData
-      });
-      res.json({
-        message: "Eleve updated successfully",
-        eleve
-      });
+      const eleve = await prisma.eleve.update({ where: { id: parseInt(id) }, data: updateData });
+      res.json({ message: "Eleve updated successfully", eleve, debug: DEBUG_NO_VALIDATION });
     } catch (err) {
       console.error("Update eleve error:", err);
       res.status(400).json({ error: "Failed to update eleve" });
@@ -2135,6 +2191,40 @@ async function startServer() {
     }
   });
 
+  // Toggle a seance's active status in calendar (frontend expects toggle)
+  app.put('/admin/attendance/calendar/toggle', verifyAdminToken, async (req, res) => {
+    const { seanceId, actif } = req.body;
+    if (!seanceId) return res.status(400).json({ error: 'seanceId required' });
+    try {
+      const updated = await prisma.seance.update({
+        where: { id: parseInt(seanceId) },
+        data: { actif: actif === undefined ? true : !!actif }
+      });
+      res.json({ message: 'Seance toggled', seance: updated });
+    } catch (err) {
+      console.error('Toggle seance error', err);
+      res.status(500).json({ error: 'Failed to toggle seance' });
+    }
+  });
+
+  // Reset calendar for a year (deactivate all seances of that year)
+  app.post('/admin/attendance/calendar/reset/:year', verifyAdminToken, async (req, res) => {
+    const yearNum = parseInt(req.params.year);
+    if (isNaN(yearNum)) return res.status(400).json({ error: 'Invalid year' });
+    try {
+      const startOfYear = new Date(yearNum, 0, 1);
+      const endOfYear = new Date(yearNum, 11, 31, 23, 59, 59, 999);
+      const result = await prisma.seance.updateMany({
+        where: { dateHeure: { gte: startOfYear, lte: endOfYear } },
+        data: { actif: false }
+      });
+      res.json({ message: 'Calendar reset', updated: result.count });
+    } catch (err) {
+      console.error('Reset calendar error', err);
+      res.status(500).json({ error: 'Failed to reset calendar' });
+    }
+  });
+
   // ==================== PERMANENCE MANAGEMENT ENDPOINTS ====================
 
   // Get weekly permanence schedule
@@ -2798,9 +2888,12 @@ async function startServer() {
     }
   });
 
-  app.listen(4000, () => {
-    console.log('Server ready at http://localhost:4000/graphql');
-    console.log('REST API ready at http://localhost:4000');
+  const PORT = process.env.PORT || 4000;
+  const HOST = process.env.HOST || '0.0.0.0';
+
+  app.listen(PORT, HOST, () => {
+    console.log(`Server ready at http://${HOST}:${PORT}/graphql`);
+    console.log(`REST API ready at http://${HOST}:${PORT}`);
     console.log('User management endpoints:');
     console.log('  POST /users/getSalt - Get user salt for login');
     console.log('  POST /users/login - User login');

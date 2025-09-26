@@ -29,7 +29,7 @@ export default function DrivePage() {
   const [createFolderOpen, setCreateFolderOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [previewItem, setPreviewItem] = useState<DriveFile | null>(null);
-  const [previewContent, setPreviewContent] = useState<{type:'text'|'binary'; content?: string; url?: string; truncated?: boolean} | null>(null);
+  const [previewContent, setPreviewContent] = useState<{type:'text'|'binary'; content?: string; url?: string | null; proxy?: string; truncated?: boolean} | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [dragCounter, setDragCounter] = useState(0);
@@ -123,7 +123,12 @@ export default function DrivePage() {
   };
 
   const handleDownload = async (file: DriveFile) => {
-    try { const url = await driveService.getDownloadUrl(file.path); window.open(url, '_blank'); } catch (e:any) { setError(e.message); }
+    try {
+      const { url, proxy } = await driveService.getDownloadUrl(file.path);
+      const finalUrl = url || proxy; // fallback to proxy streaming endpoint
+      if (!finalUrl) throw new Error('Aucune URL de téléchargement disponible');
+      window.open(finalUrl, '_blank');
+    } catch (e:any) { setError(e.message); }
   };
 
   const handleDelete = async (file: DriveFile) => {
@@ -161,7 +166,14 @@ export default function DrivePage() {
 
   const handlePreview = async (file: DriveFile) => {
     setPreviewItem(file); setPreviewContent(null); setPreviewLoading(true);
-    try { const p = await driveService.preview(file.path); if (p.type === 'text') setPreviewContent({ type:'text', content: p.content, truncated: p.truncated }); else setPreviewContent({ type:'binary', url: p.url }); }
+    try {
+      const p = await driveService.preview(file.path);
+      if (p.type === 'text') {
+        setPreviewContent({ type:'text', content: p.content, truncated: p.truncated });
+      } else {
+        setPreviewContent({ type:'binary', url: p.url || null, proxy: p.proxy });
+      }
+    }
     catch(e:any){ setPreviewContent(null); setError(e.message);} finally { setPreviewLoading(false);}  
   };
 
@@ -344,16 +356,19 @@ export default function DrivePage() {
               {previewContent.truncated && <Typography variant="caption" color="warning.main" display="block">(Tronqué)</Typography>}
             </Box>
           )}
-          {!previewLoading && previewContent?.type==='binary' && previewContent.url && (
+          {!previewLoading && previewContent?.type==='binary' && (
             <Box sx={{ textAlign:'center' }}>
-              {/* Use iframe for pdf, img tag for images */}
-              {/\.pdf$/i.test(previewItem?.name || '') ? (
-                <iframe src={previewContent.url} style={{ width:'100%', height:400, border:'none' }} />
-              ) : (/\.(png|jpg|jpeg|gif|svg)$/i.test(previewItem?.name || '') ? (
-                <img src={previewContent.url} style={{ maxWidth:'100%', maxHeight:400 }} />
-              ) : (
-                <Typography variant="body2" color="text.secondary">Aucun aperçu intégré disponible. Téléchargez le fichier.</Typography>
-              ))}
+              {(() => {
+                const displayUrl = previewContent.url || previewContent.proxy; // prefer direct URL else proxy
+                if (!displayUrl) return <Typography variant="body2" color="error.main">Prévisualisation indisponible.</Typography>;
+                if (/\.pdf$/i.test(previewItem?.name || '')) {
+                  return <iframe src={displayUrl} style={{ width:'100%', height:400, border:'none' }} />;
+                }
+                if (/\.(png|jpg|jpeg|gif|svg)$/i.test(previewItem?.name || '')) {
+                  return <img src={displayUrl} style={{ maxWidth:'100%', maxHeight:400 }} />;
+                }
+                return <Typography variant="body2" color="text.secondary">Aucun aperçu intégré disponible. Téléchargez le fichier.</Typography>;
+              })()}
             </Box>
           )}
         </DialogContent>
