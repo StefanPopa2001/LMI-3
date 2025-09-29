@@ -1,4 +1,5 @@
 import authService from './authService';
+import { config } from '../config';
 
 export interface LevelStats {
   level: string;
@@ -24,7 +25,7 @@ class StatsService {
   private baseURL: string;
 
   constructor() {
-    this.baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+    this.baseURL = config.API_URL || 'http://localhost:4000';
   }
 
   private async makeRequest(endpoint: string, options: RequestInit = {}): Promise<any> {

@@ -1,4 +1,6 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+import { config } from '../config';
+
+const API_BASE_URL = config.API_URL || 'http://localhost:4000';
 
 interface FrontendLogPayload {
   level?: 'info' | 'error';
