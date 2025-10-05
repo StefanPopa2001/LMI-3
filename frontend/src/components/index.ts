@@ -7,5 +7,4 @@ export { default as BackButton } from './ui/BackButton';
 export { default as DashboardCard } from './ui/DashboardCard';
 
 // Grid Components
-export * from './grid/useHandsontableGrid';
 export * from './grid/grid-types';

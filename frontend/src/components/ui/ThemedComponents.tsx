@@ -14,7 +14,7 @@ import {
   TextField,
   Paper,
 } from '@mui/material';
-import { usePageTheme } from '../layout/PageThemeProvider';
+import { useTheme } from '@mui/material/styles';
 
 // Themed Card Component
 interface ThemedCardProps {
@@ -38,7 +38,7 @@ export function ThemedCard({
   icon,
   sx = {},
 }: ThemedCardProps) {
-  const { currentTheme } = usePageTheme();
+  const theme = useTheme();
 
   return (
     <Card
@@ -49,7 +49,7 @@ export function ThemedCard({
         ...(hover && {
           '&:hover': {
             transform: 'translateY(-4px)',
-            boxShadow: `0 8px 30px ${currentTheme.palette.primary.main}15`,
+            boxShadow: `0 8px 30px ${theme.palette.primary.main}15`,
           },
         }),
         ...sx,
@@ -57,14 +57,14 @@ export function ThemedCard({
     >
       {(title || subtitle || icon) && (
         <CardHeader
-          avatar={icon ? <Avatar sx={{ bgcolor: currentTheme.palette.primary.main }}>{icon}</Avatar> : undefined}
+          avatar={icon ? <Avatar sx={{ bgcolor: theme.palette.primary.main }}>{icon}</Avatar> : undefined}
           title={title && (
-            <Typography variant="h6" sx={{ fontWeight: 600, color: currentTheme.palette.text.primary }}>
+            <Typography variant="h6" sx={{ fontWeight: 600, color: 'text.primary' }}>
               {title}
             </Typography>
           )}
           subheader={subtitle && (
-            <Typography variant="body2" sx={{ color: currentTheme.palette.text.secondary }}>
+            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
               {subtitle}
             </Typography>
           )}
@@ -190,7 +190,7 @@ export function ThemedTextField({
   required = false,
   onChange,
 }: ThemedTextFieldProps) {
-  const { currentTheme } = usePageTheme();
+  const theme = useTheme();
 
   return (
     <TextField
@@ -210,12 +210,12 @@ export function ThemedTextField({
       sx={{
         '& .MuiOutlinedInput-root': {
           borderRadius: 2,
-          backgroundColor: currentTheme.palette.background.paper,
+          backgroundColor: theme.palette.background.paper,
           '&:hover .MuiOutlinedInput-notchedOutline': {
-            borderColor: currentTheme.palette.primary.main,
+            borderColor: theme.palette.primary.main,
           },
           '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
-            borderColor: currentTheme.palette.primary.main,
+            borderColor: theme.palette.primary.main,
             borderWidth: 2,
           },
         },
@@ -238,7 +238,7 @@ export function ThemedPaper({
   square = false,
   sx = {},
 }: ThemedPaperProps) {
-  const { currentTheme } = usePageTheme();
+  const theme = useTheme();
 
   return (
     <Paper
@@ -246,8 +246,8 @@ export function ThemedPaper({
       square={square}
       sx={{
         borderRadius: square ? 0 : 3,
-        backgroundColor: currentTheme.palette.background.paper,
-        border: `1px solid ${currentTheme.palette.divider}`,
+        backgroundColor: theme.palette.background.paper,
+        border: `1px solid ${theme.palette.divider}`,
         ...sx,
       }}
     >
@@ -270,7 +270,7 @@ export function ThemedSection({
   children,
   maxWidth = 'lg',
 }: ThemedSectionProps) {
-  const { currentTheme } = usePageTheme();
+  const theme = useTheme();
 
   return (
     <Box
@@ -287,7 +287,7 @@ export function ThemedSection({
                 variant="h4"
                 sx={{
                   fontWeight: 700,
-                  color: currentTheme.palette.text.primary,
+                  color: 'text.primary',
                   mb: subtitle ? 2 : 0,
                 }}
               >
@@ -298,7 +298,7 @@ export function ThemedSection({
               <Typography
                 variant="h6"
                 sx={{
-                  color: currentTheme.palette.text.secondary,
+                  color: 'text.secondary',
                   fontWeight: 400,
                 }}
               >

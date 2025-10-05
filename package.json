@@ -8,7 +8,7 @@
     "dev:js": "concurrently -n backend,frontend -c blue,green \"npm:dev --workspace backend\" \"npm:dev --workspace frontend\""
   },
   "devDependencies": {
-    "concurrently": "^9.0.0"
+    "concurrently": "^9.2.1"
   },
   "workspaces": [
     "backend",

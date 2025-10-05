@@ -10,32 +10,25 @@ import {
 import { Box, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Select, MenuItem, FormControl, InputLabel, Container, Paper, Typography, Chip, FormControlLabel, Switch, IconButton, List, ListItem, ListItemText, ListItemSecondaryAction, ListItemButton, Card, CardContent, useMediaQuery, InputAdornment } from '@mui/material';
 import { Add, Refresh, Delete as DeleteIcon, ViewColumn as ViewColumnIcon, ArrowUpward, ArrowDownward, Visibility, VisibilityOff, Save, Search, TableChart, GridView } from '@mui/icons-material';
 import NavBar from '../components/layout/NavBar';
-import authService, { User } from '../services/authService';
+import eleveService, { Eleve, CreateEleveData } from '../services/eleveService';
 import { useRouter } from 'next/navigation';
 import ThemeRegistry from '../theme/ThemeRegistry';
 
-export default function UsersView() {
-  const [rows, setRows] = React.useState<User[]>([]);
+export default function ElevesView() {
+  const [rows, setRows] = React.useState<Eleve[]>([]);
   const [selectionModel, setSelectionModel] = React.useState<GridRowId[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [createDialogOpen, setCreateDialogOpen] = React.useState(false);
-  const [newUser, setNewUser] = React.useState<Partial<User & { password: string }>>({
+  const [newEleve, setNewEleve] = React.useState<Partial<Eleve & { password: string }>>({
     nom: '',
     prenom: '',
-    email: '',
-    fonction: '',
-    niveau: 0,
-    GSM: '',
-    password: '',
-    admin: false,
-    actif: true,
-    mdpTemporaire: true,
+    dateNaissance: '',
   });
   const [slotsDialogOpen, setSlotsDialogOpen] = React.useState(false);
-  const STORAGE_KEY = 'users_columns_v1';
+  const STORAGE_KEY = 'eleves_columns_v1';
 
   // default column order (must match columns later)
-  const defaultColumnOrder = ['id','nom','prenom','email','codeitbryan','GSM','titre','fonction','niveau','revenuQ1','revenuQ2','entreeFonction','admin','actif','mdpTemporaire'];
+  const defaultColumnOrder = ['id','nom','prenom','dateNaissance','idLogiscool','mdpLogiscool','contingent','nomCompletParent','nomCompletResponsable1','relationResponsable1','gsmResponsable1','mailResponsable1','nomCompletResponsable2','relationResponsable2','gsmResponsable2','mailResponsable2','nomCompletResponsable3','relationResponsable3','gsmResponsable3','mailResponsable3','retourSeul','recuperePar','periodeInscription','nombreVersements','boursier','cpas','membreClubCIB','nomPartenaire','montantBrutQ1','reduction','bourses2024Q1','montantDu','montantFinal','montantPaye','datePayment','periodePayment','montantBrutQ2','reductionQ2','boursesQ2','montantFinalQ2','montantPayeQ2','datePaymentQ2','periodePaymentQ2','abandon','dateAbandon','remarques','nomResponsableFiscal','prenomResponsableFiscal','numRegNatResponsableFiscal','dateNaissanceResponsableFiscal','adresseResponsableFiscal','codePostalResponsableFiscal','localiteResponsableFiscal','paysResponsableFiscal','numRegNationalEleve','adresseEleve','codePostalEleve','localiteEleve','paysEleve','rrRestantes'];
 
   // column order and visibility state
   const [columnOrder, setColumnOrder] = React.useState<string[]>(() => defaultColumnOrder);
@@ -83,18 +76,18 @@ export default function UsersView() {
     setCurrentTab(isMobile ? 1 : 0);
   }, [isMobile]);
 
-  // fetch users on mount
+  // fetch eleves on mount
   React.useEffect(() => {
-    fetchUsers();
+    fetchEleves();
   }, []);
 
-  const fetchUsers = async () => {
+  const fetchEleves = async () => {
     setLoading(true);
     try {
-      const users = await authService.getAllUsers();
-      setRows(users);
+      const eleves = await eleveService.getAllEleves();
+      setRows(eleves);
     } catch (error) {
-      console.error('Failed to fetch users:', error);
+      console.error('Failed to fetch eleves:', error);
     } finally {
       setLoading(false);
     }
@@ -104,37 +97,35 @@ export default function UsersView() {
     setLoading(true);
     try {
       for (const id of selectionModel) {
-        await authService.deleteUser(id as number);
+        await eleveService.deleteEleve(id as number);
       }
-      await fetchUsers();
+      await fetchEleves();
     } catch (error) {
-      console.error('Failed to delete users:', error);
+      console.error('Failed to delete eleves:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const processRowUpdate = async (updatedRow: User) => {
+  const processRowUpdate = async (updatedRow: Eleve) => {
     try {
       const payload: any = { ...updatedRow };
-      if (payload.niveau !== undefined) payload.niveau = Number(payload.niveau);
-      if (payload.entreeFonction) payload.entreeFonction = new Date(payload.entreeFonction).toISOString();
-      await authService.updateUser(updatedRow.id, payload);
+      await eleveService.updateEleve(updatedRow.id, payload);
       return updatedRow;
     } catch (error) {
-      console.error('Failed to update user:', error);
+      console.error('Failed to update eleve:', error);
       throw error;
     }
   };
 
-  const handleCreateUser = async () => {
+  const handleCreateEleve = async () => {
     try {
-      await authService.createUser(newUser as any);
+      await eleveService.createEleve(newEleve as any);
       setCreateDialogOpen(false);
-      setNewUser({ nom: '', prenom: '', email: '', fonction: '', niveau: 0, GSM: '', password: '' });
-      await fetchUsers();
+      setNewEleve({ nom: '', prenom: '', dateNaissance: '' });
+      await fetchEleves();
     } catch (error) {
-      console.error('Failed to create user:', error);
+      console.error('Failed to create eleve:', error);
     }
   };
 
@@ -240,29 +231,74 @@ export default function UsersView() {
     const normalizedQuery = searchQuery.toLowerCase().replace(/-/g, ' ');
     const queryWords = normalizedQuery.split(/\s+/).filter(word => word.length > 0);
 
-    return rows.filter(user => {
-      // Create a searchable string from all user fields
+    return rows.filter(eleves => {
+      // Create a searchable string from all eleve fields
       const searchableText = [
-        user.nom,
-        user.prenom,
-        user.email,
-        user.codeitbryan,
-        user.GSM,
-        user.titre,
-        user.fonction,
-        user.niveau != null ? niveauOptions[user.niveau] || user.niveau.toString() : '',
-        user.revenuQ1?.toString(),
-        user.revenuQ2?.toString(),
-        user.entreeFonction ? new Date(user.entreeFonction).toLocaleDateString() : '',
-        user.admin ? 'admin' : 'user',
-        user.actif ? 'actif' : 'inactif',
-        user.mdpTemporaire ? 'mdp temp' : 'mdp ok'
+        eleves.nom,
+        eleves.prenom,
+        eleves.dateNaissance ? new Date(eleves.dateNaissance).toLocaleDateString() : '',
+        eleves.idLogiscool,
+        eleves.mdpLogiscool,
+        eleves.contingent,
+        eleves.nomCompletParent,
+        eleves.nomCompletResponsable1,
+        eleves.relationResponsable1,
+        eleves.gsmResponsable1,
+        eleves.mailResponsable1,
+        eleves.nomCompletResponsable2,
+        eleves.relationResponsable2,
+        eleves.gsmResponsable2,
+        eleves.mailResponsable2,
+        eleves.nomCompletResponsable3,
+        eleves.relationResponsable3,
+        eleves.gsmResponsable3,
+        eleves.mailResponsable3,
+        eleves.retourSeul ? 'oui' : 'non',
+        eleves.recuperePar,
+        eleves.periodeInscription,
+        eleves.nombreVersements?.toString(),
+        eleves.boursier ? 'oui' : 'non',
+        eleves.cpas ? 'oui' : 'non',
+        eleves.membreClubCIB ? 'oui' : 'non',
+        eleves.nomPartenaire,
+        eleves.montantBrutQ1?.toString(),
+        eleves.reduction?.toString(),
+        eleves.bourses2024Q1?.toString(),
+        eleves.montantDu?.toString(),
+        eleves.montantFinal?.toString(),
+        eleves.montantPaye?.toString(),
+        eleves.datePayment ? new Date(eleves.datePayment).toLocaleDateString() : '',
+        eleves.periodePayment,
+        eleves.montantBrutQ2?.toString(),
+        eleves.reductionQ2?.toString(),
+        eleves.boursesQ2?.toString(),
+        eleves.montantFinalQ2?.toString(),
+        eleves.montantPayeQ2?.toString(),
+        eleves.datePaymentQ2 ? new Date(eleves.datePaymentQ2).toLocaleDateString() : '',
+        eleves.periodePaymentQ2,
+        eleves.abandon ? 'oui' : 'non',
+        eleves.dateAbandon ? new Date(eleves.dateAbandon).toLocaleDateString() : '',
+        eleves.remarques,
+        eleves.nomResponsableFiscal,
+        eleves.prenomResponsableFiscal,
+        eleves.numRegNatResponsableFiscal,
+        eleves.dateNaissanceResponsableFiscal ? new Date(eleves.dateNaissanceResponsableFiscal).toLocaleDateString() : '',
+        eleves.adresseResponsableFiscal,
+        eleves.codePostalResponsableFiscal,
+        eleves.localiteResponsableFiscal,
+        eleves.paysResponsableFiscal,
+        eleves.numRegNationalEleve,
+        eleves.adresseEleve,
+        eleves.codePostalEleve,
+        eleves.localiteEleve,
+        eleves.paysEleve,
+        eleves.rrRestantes?.toString()
       ].filter(Boolean).join(' ').toLowerCase().replace(/-/g, ' ');
 
       // Check if all query words are found in the searchable text
       return queryWords.every(word => searchableText.includes(word));
     });
-  }, [rows, searchQuery, niveauOptions]);
+  }, [rows, searchQuery]);
 
   // (orderedColumns & columnVisibilityModel will be computed after `columns` is declared)
 
@@ -273,38 +309,63 @@ export default function UsersView() {
      { field: 'id', headerName: 'ID', width: 80 },
      { field: 'nom', headerName: 'Nom', width: 150, editable: true },
      { field: 'prenom', headerName: 'Prénom', width: 150, editable: true },
-     { field: 'email', headerName: 'Email', width: 200, editable: true },
-     { field: 'codeitbryan', headerName: 'Code Bryan', width: 140, editable: true },
-     { field: 'GSM', headerName: 'GSM', width: 140, editable: true },
-     { field: 'titre', headerName: 'Titre', width: 140, editable: true },
-     { field: 'fonction', headerName: 'Fonction', width: 160, editable: true },
-     {
-       field: 'niveau',
-       headerName: 'Niveau',
-       width: 140,
-       editable: true,
-       type: 'singleSelect',
-       valueOptions: niveauValueOptions,
-       renderCell: (params) => {
-         const v = params.value as number | undefined;
-         return <span>{v != null ? niveauOptions[v] ?? `#${v}` : '-'}</span>;
-       }
-     },
-     { field: 'revenuQ1', headerName: 'Revenu Q1', width: 140, type: 'number', editable: true },
-     { field: 'revenuQ2', headerName: 'Revenu Q2', width: 140, type: 'number', editable: true },
-     {
-       field: 'entreeFonction',
-       headerName: 'Entrée fonction',
-       width: 160,
-       editable: true,
-       type: 'date',
-       valueFormatter: (params: any) => params.value ? new Date(params.value).toLocaleDateString() : '-',
-     },
-     { field: 'admin', headerName: 'Admin', width: 100, type: 'boolean', editable: true },
-     { field: 'actif', headerName: 'Actif', width: 100, type: 'boolean', editable: true },
-     { field: 'mdpTemporaire', headerName: 'MDP Temp', width: 120, renderCell: (p) => (
-       <Chip label={p.value ? 'Yes' : 'No'} color={p.value ? 'error' : 'success'} size="small" />
-     )},
+     { field: 'dateNaissance', headerName: 'Date Naissance', width: 160, editable: true, type: 'date', valueFormatter: (params: any) => params.value ? new Date(params.value).toLocaleDateString() : '-', },
+     { field: 'idLogiscool', headerName: 'ID Logiscool', width: 140, editable: true },
+     { field: 'mdpLogiscool', headerName: 'MDP Logiscool', width: 140, editable: true },
+     { field: 'contingent', headerName: 'Contingent', width: 140, editable: true },
+     { field: 'nomCompletParent', headerName: 'Parent', width: 200, editable: true },
+     { field: 'nomCompletResponsable1', headerName: 'Resp1 Nom', width: 180, editable: true },
+     { field: 'relationResponsable1', headerName: 'Resp1 Relation', width: 160, editable: true },
+     { field: 'gsmResponsable1', headerName: 'Resp1 GSM', width: 140, editable: true },
+     { field: 'mailResponsable1', headerName: 'Resp1 Email', width: 200, editable: true },
+     { field: 'nomCompletResponsable2', headerName: 'Resp2 Nom', width: 180, editable: true },
+     { field: 'relationResponsable2', headerName: 'Resp2 Relation', width: 160, editable: true },
+     { field: 'gsmResponsable2', headerName: 'Resp2 GSM', width: 140, editable: true },
+     { field: 'mailResponsable2', headerName: 'Resp2 Email', width: 200, editable: true },
+     { field: 'nomCompletResponsable3', headerName: 'Resp3 Nom', width: 180, editable: true },
+     { field: 'relationResponsable3', headerName: 'Resp3 Relation', width: 160, editable: true },
+     { field: 'gsmResponsable3', headerName: 'Resp3 GSM', width: 140, editable: true },
+     { field: 'mailResponsable3', headerName: 'Resp3 Email', width: 200, editable: true },
+     { field: 'retourSeul', headerName: 'Retour Seul', width: 130, type: 'boolean', editable: true },
+     { field: 'recuperePar', headerName: 'Récupéré Par', width: 160, editable: true },
+     { field: 'periodeInscription', headerName: 'Période Inscription', width: 160, editable: true },
+     { field: 'nombreVersements', headerName: 'Nombre Versements', width: 180, type: 'number', editable: true },
+     { field: 'boursier', headerName: 'Boursier', width: 120, type: 'boolean', editable: true },
+     { field: 'cpas', headerName: 'CPAS', width: 100, type: 'boolean', editable: true },
+     { field: 'membreClubCIB', headerName: 'Club CIB', width: 120, type: 'boolean', editable: true },
+     { field: 'nomPartenaire', headerName: 'Partenaire', width: 160, editable: true },
+     { field: 'montantBrutQ1', headerName: 'Montant Brut Q1', width: 160, type: 'number', editable: true },
+     { field: 'reduction', headerName: 'Réduction Q1', width: 140, type: 'number', editable: true },
+     { field: 'bourses2024Q1', headerName: 'Bourses 2024 Q1', width: 160, type: 'number', editable: true },
+     { field: 'montantDu', headerName: 'Montant Dû Q1', width: 150, type: 'number', editable: true },
+     { field: 'montantFinal', headerName: 'Montant Final Q1', width: 170, type: 'number', editable: true },
+     { field: 'montantPaye', headerName: 'Montant Payé Q1', width: 170, type: 'number', editable: true },
+     { field: 'datePayment', headerName: 'Date Paiement Q1', width: 160, editable: true, type: 'date', valueFormatter: (params: any) => params.value ? new Date(params.value).toLocaleDateString() : '-', },
+     { field: 'periodePayment', headerName: 'Période Paiement Q1', width: 170, editable: true },
+     { field: 'montantBrutQ2', headerName: 'Montant Brut Q2', width: 160, type: 'number', editable: true },
+     { field: 'reductionQ2', headerName: 'Réduction Q2', width: 140, type: 'number', editable: true },
+     { field: 'boursesQ2', headerName: 'Bourses Q2', width: 140, type: 'number', editable: true },
+     { field: 'montantFinalQ2', headerName: 'Montant Final Q2', width: 160, type: 'number', editable: true },
+     { field: 'montantPayeQ2', headerName: 'Montant Payé Q2', width: 160, type: 'number', editable: true },
+     { field: 'datePaymentQ2', headerName: 'Date Paiement Q2', width: 160, editable: true, type: 'date', valueFormatter: (params: any) => params.value ? new Date(params.value).toLocaleDateString() : '-', },
+     { field: 'periodePaymentQ2', headerName: 'Période Paiement Q2', width: 170, editable: true },
+     { field: 'abandon', headerName: 'Abandon', width: 110, type: 'boolean', editable: true },
+     { field: 'dateAbandon', headerName: 'Date Abandon', width: 160, editable: true, type: 'date', valueFormatter: (params: any) => params.value ? new Date(params.value).toLocaleDateString() : '-', },
+     { field: 'remarques', headerName: 'Remarques', width: 240, editable: true },
+     { field: 'nomResponsableFiscal', headerName: 'Resp Fiscal Nom', width: 180, editable: true },
+     { field: 'prenomResponsableFiscal', headerName: 'Resp Fiscal Prénom', width: 180, editable: true },
+     { field: 'numRegNatResponsableFiscal', headerName: 'Resp Fiscal Reg Nat', width: 200, editable: true },
+     { field: 'dateNaissanceResponsableFiscal', headerName: 'Resp Fiscal Naissance', width: 200, editable: true, type: 'date', valueFormatter: (params: any) => params.value ? new Date(params.value).toLocaleDateString() : '-', },
+     { field: 'adresseResponsableFiscal', headerName: 'Resp Fiscal Adresse', width: 240, editable: true },
+     { field: 'codePostalResponsableFiscal', headerName: 'Resp Fiscal CP', width: 140, editable: true },
+     { field: 'localiteResponsableFiscal', headerName: 'Resp Fiscal Localité', width: 180, editable: true },
+     { field: 'paysResponsableFiscal', headerName: 'Resp Fiscal Pays', width: 150, editable: true },
+     { field: 'numRegNationalEleve', headerName: 'Élève Reg Nat', width: 160, editable: true },
+     { field: 'adresseEleve', headerName: 'Élève Adresse', width: 220, editable: true },
+     { field: 'codePostalEleve', headerName: 'Élève CP', width: 120, editable: true },
+     { field: 'localiteEleve', headerName: "Élève Localité", width: 160, editable: true },
+     { field: 'paysEleve', headerName: 'Élève Pays', width: 140, editable: true },
+     { field: 'rrRestantes', headerName: 'RR Restantes', width: 140, type: 'number', editable: true },
    ];
 
    // compute ordered columns for DataGrid and columnVisibilityModel
@@ -337,7 +398,7 @@ export default function UsersView() {
             fontSize: { xs: '1.75rem', sm: '2rem', md: '2.5rem' },
             fontWeight: 'bold'
           }}>
-            Gestion des utilisateurs
+            Gestion des élèves
           </Typography>
           <Box sx={{ display: 'flex', gap: 1 }}>
             <IconButton
@@ -374,7 +435,7 @@ export default function UsersView() {
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                   <Typography variant="h5" sx={{ color: 'var(--color-text-primary)' }}>
-                    Liste des utilisateurs ({filteredRows.length})
+                    Liste des élèves ({filteredRows.length})
                   </Typography>
                   <TextField
                     size="small"
@@ -389,14 +450,14 @@ export default function UsersView() {
                 </Box>
                 <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
                   <Button variant="contained" startIcon={<Add />} onClick={() => setCreateDialogOpen(true)}>
-                    Ajouter Utilisateur
+                    Ajouter Élève
                   </Button>
 
                   <IconButton
                     color="error"
                     onClick={async () => {
                       if (selectionModel.length === 0) return;
-                      const ok = window.confirm(`Supprimer ${selectionModel.length} utilisateur(s) ?`);
+                      const ok = window.confirm(`Supprimer ${selectionModel.length} élève(s) ?`);
                       if (!ok) return;
                       await handleBulkDelete();
                     }}
@@ -408,7 +469,7 @@ export default function UsersView() {
 
                   <Button variant="outlined" onClick={() => setSlotsDialogOpen(true)}>Modifier vue</Button>
 
-                  <Button variant="outlined" onClick={fetchUsers} title="Refresh">
+                  <Button variant="outlined" onClick={fetchEleves} title="Refresh">
                     <Refresh />
                   </Button>
                 </Box>
@@ -478,7 +539,7 @@ export default function UsersView() {
 
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                 <Typography variant="h5" sx={{ color: 'var(--color-text-primary)' }}>
-                  Grille des utilisateurs ({filteredRows.length})
+                  Grille des élèves ({filteredRows.length})
                 </Typography>
               </Box>
 
@@ -493,25 +554,24 @@ export default function UsersView() {
                   },
                   gap: 2
                 }}>
-                  {filteredRows.map((user) => (
-                    <Card key={user.id} sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                  {filteredRows.map((eleve) => (
+                    <Card key={eleve.id} sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
                       <CardContent sx={{ flex: 1 }}>
                         <Typography variant="h6" gutterBottom>
-                          {user.nom} {user.prenom}
+                          {eleve.nom} {eleve.prenom}
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                          {user.email}
+                          {eleve.dateNaissance ? new Date(eleve.dateNaissance).toLocaleDateString('fr-FR') : 'N/A'}
                         </Typography>
                         <Typography variant="body2">
-                          Fonction: {user.fonction || 'N/A'}
+                          Parent: {eleve.nomCompletParent || 'N/A'}
                         </Typography>
                         <Typography variant="body2">
-                          Niveau: {user.niveau != null ? niveauOptions[user.niveau] || user.niveau : 'N/A'}
+                          Responsable: {eleve.nomCompletResponsable1 || 'N/A'}
                         </Typography>
                         <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
-                          <Chip label={user.admin ? 'Admin' : 'User'} color={user.admin ? 'primary' : 'default'} size="small" />
-                          <Chip label={user.actif ? 'Actif' : 'Inactif'} color={user.actif ? 'success' : 'error'} size="small" />
-                          <Chip label={user.mdpTemporaire ? 'MDP Temp' : 'MDP OK'} color={user.mdpTemporaire ? 'warning' : 'success'} size="small" />
+                          <Chip label={eleve.boursier ? 'Boursier' : 'Non boursier'} color={eleve.boursier ? 'primary' : 'default'} size="small" />
+                          <Chip label={eleve.abandon ? 'Abandon' : 'Actif'} color={eleve.abandon ? 'error' : 'success'} size="small" />
                         </Box>
                       </CardContent>
                     </Card>
@@ -523,123 +583,35 @@ export default function UsersView() {
         </Paper>
 
         <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)}>
-          <DialogTitle>Ajouter un nouvel utilisateur</DialogTitle>
+          <DialogTitle>Ajouter un nouvel élève</DialogTitle>
           <DialogContent>
             <TextField
               autoFocus
               margin="dense"
               label="Nom"
               fullWidth
-              value={newUser.nom}
-              onChange={(e) => setNewUser({ ...newUser, nom: e.target.value })}
+              value={newEleve.nom}
+              onChange={(e) => setNewEleve({ ...newEleve, nom: e.target.value })}
             />
             <TextField
               margin="dense"
               label="Prénom"
               fullWidth
-              value={newUser.prenom}
-              onChange={(e) => setNewUser({ ...newUser, prenom: e.target.value })}
+              value={newEleve.prenom}
+              onChange={(e) => setNewEleve({ ...newEleve, prenom: e.target.value })}
             />
             <TextField
               margin="dense"
-              label="Email"
-              fullWidth
-              value={newUser.email}
-              onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-            />
-            <TextField
-              margin="dense"
-              label="Code Bryan"
-              fullWidth
-              value={newUser.codeitbryan as string || ''}
-              onChange={(e) => setNewUser({ ...newUser, codeitbryan: e.target.value })}
-            />
-            <TextField
-              margin="dense"
-              label="GSM"
-              fullWidth
-              value={newUser.GSM as string || ''}
-              onChange={(e) => setNewUser({ ...newUser, GSM: e.target.value })}
-            />
-            <TextField
-              margin="dense"
-              label="Titre"
-              fullWidth
-              value={newUser.titre as string || ''}
-              onChange={(e) => setNewUser({ ...newUser, titre: e.target.value })}
-            />
-            <TextField
-              margin="dense"
-              label="Fonction"
-              fullWidth
-              value={newUser.fonction as string || ''}
-              onChange={(e) => setNewUser({ ...newUser, fonction: e.target.value })}
-            />
-
-            <FormControl fullWidth margin="dense">
-              <InputLabel id="niveau-label">Niveau</InputLabel>
-              <Select
-                labelId="niveau-label"
-                label="Niveau"
-                value={typeof newUser.niveau === 'number' ? newUser.niveau : 0}
-                onChange={(e) => setNewUser({ ...newUser, niveau: Number(e.target.value) })}
-              >
-                {Object.entries(niveauOptions).map(([k, label]) => (
-                  <MenuItem key={k} value={Number(k)}>{label}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-
-            <TextField
-              margin="dense"
-              label="Revenu Q1"
-              type="number"
-              fullWidth
-              value={newUser.revenuQ1 ?? ''}
-              onChange={(e) => setNewUser({ ...newUser, revenuQ1: e.target.value === '' ? 0 : Number(e.target.value) })}
-            />
-            <TextField
-              margin="dense"
-              label="Revenu Q2"
-              type="number"
-              fullWidth
-              value={newUser.revenuQ2 ?? ''}
-              onChange={(e) => setNewUser({ ...newUser, revenuQ2: e.target.value === '' ? 0 : Number(e.target.value) })}
-            />
-            <TextField
-              margin="dense"
-              label="Entrée fonction (date)"
+              label="Date de naissance"
               type="date"
               fullWidth
-              value={newUser.entreeFonction ? (new Date(newUser.entreeFonction as any)).toISOString().slice(0,10) : ''}
-              onChange={(e) => setNewUser({ ...newUser, entreeFonction: e.target.value ? new Date(e.target.value).toISOString() : undefined })}
-            />
-
-            <FormControlLabel
-              control={<Switch checked={!!newUser.admin} onChange={(e) => setNewUser({ ...newUser, admin: e.target.checked })} />}
-              label="Admin"
-            />
-            <FormControlLabel
-              control={<Switch checked={!!newUser.actif} onChange={(e) => setNewUser({ ...newUser, actif: e.target.checked })} />}
-              label="Actif"
-            />
-            <FormControlLabel
-              control={<Switch checked={!!newUser.mdpTemporaire} onChange={(e) => setNewUser({ ...newUser, mdpTemporaire: e.target.checked })} />}
-              label="MDP Temporaire"
-            />
-
-            <TextField
-              margin="dense"
-              label="Mot de passe"
-              type="password"
-              fullWidth
-              value={newUser.password}
-              onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+              value={newEleve.dateNaissance}
+              onChange={(e) => setNewEleve({ ...newEleve, dateNaissance: e.target.value })}
             />
           </DialogContent>
           <DialogActions>
             <Button onClick={() => setCreateDialogOpen(false)}>Annuler</Button>
-            <Button onClick={handleCreateUser}>Sauvegarder</Button>
+            <Button onClick={handleCreateEleve}>Sauvegarder</Button>
           </DialogActions>
         </Dialog>
 

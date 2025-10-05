@@ -18,18 +18,17 @@ import {
   People as PeopleIcon,
   School as SchoolIcon,
   Analytics as AnalyticsIcon,
-  Settings as SettingsIcon,
   CalendarToday as CalendarTodayIcon,
   Inventory as InventoryIcon,
-  Brightness4 as Brightness4Icon,
-  Brightness7 as Brightness7Icon,
-  Palette as PaletteIcon,
   Assessment as AssessmentIcon,
   Cloud as CloudIcon,
+  Badge as BadgeIcon,
+  Groups2 as Groups2Icon,
+  Settings as SettingsIcon,
 } from '@mui/icons-material';
 import { useRouter } from 'next/navigation';
 import authService from '../../services/authService';
-import { usePageTheme } from './PageThemeProvider';
+// fixed dark theme; no theme toggle
 
 interface NavBarProps {
   title?: string;
@@ -40,7 +39,7 @@ export default function NavBar({ title = "Logiscool Mons Intranet III" }: NavBar
   const [burgerAnchorEl, setBurgerAnchorEl] = useState<null | HTMLElement>(null);
   const [mounted, setMounted] = useState(false);
   const router = useRouter();
-  const { isDarkMode, toggleTheme } = usePageTheme();
+  // no theme toggling
 
   useEffect(() => {
     setMounted(true);
@@ -73,6 +72,11 @@ export default function NavBar({ title = "Logiscool Mons Intranet III" }: NavBar
     router.push('/login');
   };
 
+  const handleSettings = () => {
+    handleClose();
+    router.push('/settings');
+  };
+
   const handleNavigateToUsers = () => {
     handleBurgerClose();
     router.push('/users');
@@ -98,10 +102,6 @@ export default function NavBar({ title = "Logiscool Mons Intranet III" }: NavBar
     router.push('/stats');
   };
 
-  const handleNavigateToSettings = () => {
-    handleBurgerClose();
-    router.push('/settings');
-  };
 
   const handleNavigateToAttendance = () => {
     handleBurgerClose();
@@ -113,10 +113,6 @@ export default function NavBar({ title = "Logiscool Mons Intranet III" }: NavBar
     router.push('/dashboard');
   };
 
-  const handleNavigateToTheme = () => {
-    handleBurgerClose();
-    router.push('/theme');
-  };
   const handleNavigateToDrive = () => {
     handleBurgerClose();
     router.push('/drive');
@@ -144,14 +140,6 @@ export default function NavBar({ title = "Logiscool Mons Intranet III" }: NavBar
             <Box sx={{ display: { xs: 'none', sm: 'block' } }}>{title}</Box>
           </Typography>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <IconButton
-              size="large"
-              onClick={toggleTheme}
-              color="inherit"
-              sx={{ mr: 1 }}
-            >
-              <Brightness4Icon />
-            </IconButton>
             <IconButton
               size="large"
               aria-label="account of current user"
@@ -203,14 +191,6 @@ export default function NavBar({ title = "Logiscool Mons Intranet III" }: NavBar
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           <IconButton
             size="large"
-            onClick={toggleTheme}
-            color="inherit"
-            sx={{ mr: 1 }}
-          >
-            {isDarkMode ? <Brightness7Icon /> : <Brightness4Icon />}
-          </IconButton>
-          <IconButton
-            size="large"
             aria-label="account of current user"
             aria-controls="menu-appbar"
             aria-haspopup="true"
@@ -240,6 +220,7 @@ export default function NavBar({ title = "Logiscool Mons Intranet III" }: NavBar
             open={Boolean(anchorEl)}
             onClose={handleClose}
           >
+            <MenuItem onClick={handleSettings}>Settings</MenuItem>
             <MenuItem onClick={handleProfile}>Profile</MenuItem>
             <MenuItem onClick={handleLogout}>Logout</MenuItem>
           </Menu>
@@ -263,11 +244,17 @@ export default function NavBar({ title = "Logiscool Mons Intranet III" }: NavBar
               Dashboard
             </MenuItem>
             <MenuItem onClick={handleNavigateToUsers}>
-              <PeopleIcon sx={{ mr: 1 }} />
+              <BadgeIcon sx={{ mr: 1 }} />
               Gestion des utilisateurs
             </MenuItem>
+            {currentUser?.admin && (
+              <MenuItem onClick={() => { handleBurgerClose(); router.push('/settings'); }}>
+                <SettingsIcon sx={{ mr: 1 }} />
+                Settings
+              </MenuItem>
+            )}
             <MenuItem onClick={handleNavigateToEleves}>
-              <InventoryIcon sx={{ mr: 1 }} />
+              <Groups2Icon sx={{ mr: 1 }} />
               Gestion des élèves
             </MenuItem>
             <MenuItem onClick={handleNavigateToClasses}>
@@ -286,14 +273,7 @@ export default function NavBar({ title = "Logiscool Mons Intranet III" }: NavBar
               <CalendarTodayIcon sx={{ mr: 1 }} />
               Carnet des présences
             </MenuItem>
-            <MenuItem onClick={handleNavigateToSettings}>
-              <SettingsIcon sx={{ mr: 1 }} />
-              Settings
-            </MenuItem>
-            <MenuItem onClick={handleNavigateToTheme}>
-              <PaletteIcon sx={{ mr: 1 }} />
-              Thème
-            </MenuItem>
+            
             {currentUser?.admin && (
               <MenuItem onClick={handleNavigateToDrive}>
                 <CloudIcon sx={{ mr: 1 }} />

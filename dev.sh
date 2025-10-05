@@ -4,12 +4,16 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT_DIR"
 
+# Load nvm (uses default lts)
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
 echo "\n=== LMI Dev Orchestrator ==="
 echo "Root: $ROOT_DIR"
 
 # --- 1. Start infra services (db, redis) via docker compose ---
 echo "[infra] Ensuring Postgres + Redis are up (docker compose)..."
-docker compose up -d db redis >/dev/null 2>&1 || docker-compose up -d db redis
+docker compose up -d db_postgres_lmi3 redis_lmi3 >/dev/null 2>&1 || docker-compose up -d db_postgres_lmi3 redis_lmi3
 
 echo "[infra] Active containers:"
 docker compose ps --services --status running 2>/dev/null || docker-compose ps --services
@@ -40,8 +44,8 @@ wait_for_postgres() {
 	local delay=1
 	for i in $(seq 1 $retries); do
 		# Try docker exec pg_isready if available
-		if (docker compose exec -T db pg_isready -U user >/dev/null 2>&1) || \
-			 (docker-compose exec -T db pg_isready -U user >/dev/null 2>&1); then
+		if (docker compose exec -T db_postgres_lmi3 pg_isready -U user >/dev/null 2>&1) || \
+			 (docker-compose exec -T db_postgres_lmi3 pg_isready -U user >/dev/null 2>&1); then
 			echo "[infra] Postgres ready (via pg_isready)."; return 0
 		fi
 		# Fallback: simple TCP check

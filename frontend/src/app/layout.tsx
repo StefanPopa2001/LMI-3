@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Montserrat } from "next/font/google";
-import "./globals.css";
-import PageThemeProvider from "../components/layout/PageThemeProvider";
+import ThemeRegistry from "../theme/ThemeRegistry";
 import { CssBaseline } from '@mui/material';
 import { ToastProvider } from "../components/ui/ToastContext";
 import { ToastContainer } from "../components/ui/ToastContainer";
@@ -35,10 +34,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} ${montserrat.variable} antialiased`}
-      >
-        <PageThemeProvider>
+      <body className={`${geistSans.variable} ${geistMono.variable} ${montserrat.variable}`}>
+        <ThemeRegistry>
           <CssBaseline />
           <ToastProvider>
             <AuthGuard>
@@ -46,7 +43,7 @@ export default function RootLayout({
             </AuthGuard>
             <ToastContainer />
           </ToastProvider>
-        </PageThemeProvider>
+        </ThemeRegistry>
       </body>
     </html>
   );

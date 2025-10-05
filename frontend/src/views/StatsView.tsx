@@ -23,7 +23,7 @@ import {
   BarChart,
 } from '@mui/icons-material';
 
-import ThemeRegistry from '../components/layout/ThemeRegistry';
+import ThemeRegistry from '../theme/ThemeRegistry';
 import NavBar from '../components/layout/NavBar';
 import authService from '../services/authService';
 import statsService, { LevelStats, TeacherStats } from '../services/statsService';

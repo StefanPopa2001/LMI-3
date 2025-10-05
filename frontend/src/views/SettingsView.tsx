@@ -1,439 +1,257 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect } from 'react';
-import { settingsService, Setting, GroupedSettings, CreateSettingData } from '../services/settingsService';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import NavBar from '../components/layout/NavBar';
 import { useToast } from '../components/ui/ToastManager';
-
-interface SettingsViewProps {
-  className?: string;
-}
+import { settingsService, Setting, GroupedSettings, CreateSettingData } from '../services/settingsService';
+import ThemeRegistry from '../theme/ThemeRegistry';
+import {
+  Box,
+  Button,
+  Chip,
+  Container,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  FormControl,
+  IconButton,
+  InputLabel,
+  MenuItem,
+  Paper,
+  Select,
+  Stack,
+  TextField,
+  Typography,
+} from '@mui/material';
+import { Add, Close, Delete, Edit } from '@mui/icons-material';
+import authService from '../services/authService';
 
 const categoryLabels: Record<string, string> = {
   level: 'Niveaux de cours',
-  typeCours: 'Types de cours', 
+  typeCours: 'Types de cours',
   location: 'Emplacements',
-  salle: 'Salles'
+  salle: 'Salles',
 };
 
 const categoryDescriptions: Record<string, string> = {
-  level: 'Gérez les différents niveaux de difficulté des cours',
+  level: "Gérez les différents niveaux des cours (modules)",
   typeCours: 'Définissez les types de cours disponibles',
   location: 'Configurez les différents emplacements des cours',
-  salle: 'Gérez les salles disponibles pour les cours'
+  salle: 'Gérez les salles disponibles pour les cours',
 };
 
-export default function SettingsView({ className = '' }: SettingsViewProps) {
+export default function SettingsView() {
+  const router = useRouter();
   const { success: showSuccess, error: showError } = useToast();
-  const [settings, setSettings] = useState<GroupedSettings>({});
+  const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [activeCategory, setActiveCategory] = useState<string>('level');
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [settings, setSettings] = useState<GroupedSettings>({});
+  const [activeCategory, setActiveCategory] = useState<keyof typeof categoryLabels>('level');
+  const [dialogOpen, setDialogOpen] = useState(false);
   const [editingSetting, setEditingSetting] = useState<Setting | null>(null);
-  const [formData, setFormData] = useState<CreateSettingData>({
-    category: 'level',
-    value: '',
-    label: '',
-    description: '',
-    order: 0
-  });
+  const [formData, setFormData] = useState<CreateSettingData>({ category: 'level', value: '', label: '', description: '', order: 0 });
 
+  useEffect(() => setMounted(true), []);
   useEffect(() => {
+    if (!mounted) return;
+    if (!authService.isAuthenticated()) {
+      router.push('/login');
+      return;
+    }
+    if (!authService.isAdmin()) {
+      router.push('/dashboard');
+      return;
+    }
     loadSettings();
-  }, []);
+  }, [mounted]);
 
   const loadSettings = async () => {
     try {
       setLoading(true);
       const data = await settingsService.getAllSettings();
       setSettings(data);
-    } catch (err) {
-      showError(err instanceof Error ? err.message : 'Erreur lors du chargement des paramètres');
+    } catch (err: any) {
+      if (err.message?.startsWith('AUTH_ERROR:')) {
+        router.push('/login');
+        return;
+      }
+      showError(err.message || 'Erreur lors du chargement des paramètres');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCreateSetting = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const currentSettings = useMemo(() => settings[activeCategory] || [], [settings, activeCategory]);
+
+  const openCreate = () => {
+    setEditingSetting(null);
+    setFormData({ category: activeCategory, value: '', label: '', description: '', order: 0 });
+    setDialogOpen(true);
+  };
+
+  const openEdit = (s: Setting) => {
+    setEditingSetting(s);
+    setFormData({ category: s.category, value: s.value, label: s.label || '', description: s.description || '', order: s.order || 0 });
+    setDialogOpen(true);
+  };
+
+  const closeDialog = () => {
+    setDialogOpen(false);
+    setEditingSetting(null);
+  };
+
+  const onSubmit = async () => {
     try {
-      await settingsService.createSetting(formData);
+      if (editingSetting) {
+        await settingsService.updateSetting(editingSetting.id, {
+          value: formData.value,
+          label: formData.label,
+          description: formData.description,
+          order: formData.order,
+        });
+        showSuccess('Paramètre mis à jour');
+      } else {
+        await settingsService.createSetting(formData);
+        showSuccess('Paramètre créé');
+      }
+      closeDialog();
       await loadSettings();
-      setIsCreateModalOpen(false);
-      setFormData({
-        category: activeCategory,
-        value: '',
-        label: '',
-        description: '',
-        order: 0
-      });
-      showSuccess('Paramètre créé');
-    } catch (err) {
-      showError(err instanceof Error ? err.message : 'Erreur lors de la création');
+    } catch (err: any) {
+      showError(err.message || 'Opération impossible');
     }
   };
 
-  const handleUpdateSetting = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingSetting) return;
-    
-    try {
-      await settingsService.updateSetting(editingSetting.id, {
-        value: formData.value,
-        label: formData.label,
-        description: formData.description,
-        order: formData.order
-      });
-      await loadSettings();
-      setEditingSetting(null);
-      setFormData({
-        category: activeCategory,
-        value: '',
-        label: '',
-        description: '',
-        order: 0
-      });
-      showSuccess('Paramètre mis à jour');
-    } catch (err) {
-      showError(err instanceof Error ? err.message : 'Erreur lors de la mise à jour');
-    }
-  };
-
-  const handleDeleteSetting = async (id: number) => {
-    if (!confirm('Êtes-vous sûr de vouloir supprimer ce paramètre ?')) return;
-    
+  const onDelete = async (id: number) => {
+    if (!confirm('Supprimer ce paramètre ?')) return;
     try {
       await settingsService.deleteSetting(id);
-      await loadSettings();
       showSuccess('Paramètre supprimé');
-    } catch (err) {
-      showError(err instanceof Error ? err.message : 'Erreur lors de la suppression');
+      await loadSettings();
+    } catch (err: any) {
+      showError(err.message || 'Suppression impossible');
     }
   };
 
-  const openCreateModal = () => {
-    setFormData({
-      category: activeCategory,
-      value: '',
-      label: '',
-      description: '',
-      order: 0
-    });
-    setIsCreateModalOpen(true);
-  };
-
-  const openEditModal = (setting: Setting) => {
-    setFormData({
-      category: setting.category,
-      value: setting.value,
-      label: setting.label || '',
-      description: setting.description || '',
-      order: setting.order || 0
-    });
-    setEditingSetting(setting);
-  };
-
-  const closeModals = () => {
-    setIsCreateModalOpen(false);
-    setEditingSetting(null);
-    setFormData({
-      category: activeCategory,
-      value: '',
-      label: '',
-      description: '',
-      order: 0
-    });
-  };
-
-  if (loading) {
+  if (!mounted) {
     return (
-      <div className="min-h-screen" style={{ backgroundColor: 'var(--color-bg-primary)' }}>
+      <ThemeRegistry>
         <NavBar />
-        <div className="flex justify-center p-8">
-          <div style={{ color: 'var(--color-text-primary)' }} className="font-semibold">Chargement des paramètres...</div>
-        </div>
-      </div>
+        <Container sx={{ py: 6, mt: 10 }}>
+          <Typography>Chargement…</Typography>
+        </Container>
+      </ThemeRegistry>
     );
   }
 
-  const currentSettings = settings[activeCategory] || [];
+  if (!authService.isAuthenticated() || !authService.isAdmin()) return null;
 
   return (
-    <div className={`min-h-screen ${className}`} style={{ backgroundColor: 'var(--color-bg-primary)' }}>
+    <ThemeRegistry>
       <NavBar />
-      <div className="p-6"> 
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold mb-2" style={{ color: 'var(--color-text-primary)' }}>Paramètres des cours</h1>
-        <p style={{ color: 'var(--color-text-secondary)' }}>
-          Gérez les options disponibles pour les classes et les cours.
-        </p>
-      </div>
+      <Container maxWidth="lg" sx={{ py: 6, mt: 10 }}>
+        <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 3 }}>
+          <Box>
+            <Typography variant="h4" fontWeight={700}>Paramètres des cours</Typography>
+            <Typography variant="body2" color="text.secondary">Gérez les options disponibles pour les classes et les cours.</Typography>
+          </Box>
+          <Button variant="contained" startIcon={<Add />} onClick={openCreate}>Ajouter</Button>
+        </Stack>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Categories sidebar */}
-        <div className="lg:col-span-1">
-          <div className="rounded-lg shadow-lg" style={{ 
-            backgroundColor: 'var(--color-bg-secondary)', 
-            border: '1px solid var(--color-border-light)' 
-          }}>
-            <div className="p-4" style={{ borderBottom: '1px solid var(--color-border-light)' }}>
-              <h2 className="font-semibold" style={{ color: 'var(--color-text-primary)' }}>Catégories</h2>
-            </div>
-            <nav className="p-2">
-              {Object.keys(categoryLabels).map((category) => (
-                <button
-                  key={category}
-                  onClick={() => setActiveCategory(category)}
-                  className="w-full text-left px-3 py-2 rounded mb-1 transition-all duration-200"
-                  style={{
-                    color: 'var(--color-text-primary)',
-                    backgroundColor: activeCategory === category ? 'var(--color-primary-500)' : 'transparent',
-                    fontWeight: activeCategory === category ? '600' : 'normal'
-                  }}
-                  onMouseEnter={(e) => {
-                    if (activeCategory !== category) {
-                      (e.target as HTMLElement).style.backgroundColor = 'var(--color-bg-tertiary)';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (activeCategory !== category) {
-                      (e.target as HTMLElement).style.backgroundColor = 'transparent';
-                    }
-                  }}
-                >
-                  {categoryLabels[category]}
-                  {settings[category] && (
-                    <span className="ml-2 px-2 py-1 rounded-full text-xs font-medium" style={{ 
-                      backgroundColor: 'var(--color-bg-tertiary)', 
-                      color: 'var(--color-text-primary)' 
-                    }}>
-                      {settings[category].length}
-                    </span>
-                  )}
-                </button>
-              ))}
-            </nav>
-          </div>
-        </div>
-
-        {/* Settings content */}
-        <div className="lg:col-span-3">
-          <div className="rounded-lg shadow-lg" style={{ 
-            backgroundColor: 'var(--color-bg-secondary)', 
-            border: '1px solid var(--color-border-light)' 
-          }}>
-            <div className="p-4 flex justify-between items-center" style={{ borderBottom: '1px solid var(--color-border-light)' }}>
-              <div>
-                <h2 className="font-semibold" style={{ color: 'var(--color-text-primary)' }}>{categoryLabels[activeCategory]}</h2>
-                <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>{categoryDescriptions[activeCategory]}</p>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={openCreateModal}
-                  className="px-4 py-2 rounded font-semibold transition-all duration-200"
-                  style={{ 
-                    backgroundColor: 'var(--color-primary-500)', 
-                    color: 'var(--color-text-primary)' 
-                  }}
-                  onMouseEnter={(e) => (e.target as HTMLElement).style.backgroundColor = 'var(--color-primary-600)'}
-                  onMouseLeave={(e) => (e.target as HTMLElement).style.backgroundColor = 'var(--color-primary-500)'}
-                >
-                  Ajouter
-                </button>
-              </div>
-            </div>
-            
-            <div className="p-4">
-              {currentSettings.length === 0 ? (
-                <p className="text-center py-8" style={{ color: 'var(--color-text-secondary)' }}>
-                  Aucun paramètre configuré pour cette catégorie.
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {currentSettings.map((setting) => (
-                    <div key={setting.id} className="border rounded-lg p-4" style={{ 
-                      borderColor: 'var(--color-border-light)',
-                      backgroundColor: 'var(--color-bg-secondary)'
-                    }}>
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-medium" style={{ color: 'var(--color-text-primary)' }}>{setting.label || setting.value}</span>
-                            <span className="px-2 py-1 rounded text-xs font-medium" style={{
-                              backgroundColor: 'var(--color-bg-tertiary)',
-                              color: 'var(--color-text-primary)'
-                            }}>
-                              {setting.value}
-                            </span>
-                            {setting.order !== null && (
-                              <span className="px-2 py-1 rounded text-xs font-medium" style={{
-                                backgroundColor: 'var(--color-primary-500)',
-                                color: 'var(--color-text-primary)'
-                              }}>
-                                Ordre: {setting.order}
-                              </span>
-                            )}
-                          </div>
-                          {setting.description && (
-                            <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>{setting.description}</p>
-                          )}
-                        </div>
-                        <div className="flex gap-2 ml-4">
-                          <button
-                            onClick={() => openEditModal(setting)}
-                            className="text-sm font-medium transition-colors hover:opacity-80"
-                            style={{ color: 'var(--color-primary-500)' }}
-                          >
-                            Modifier
-                          </button>
-                          <button
-                            onClick={() => handleDeleteSetting(setting.id)}
-                            className="text-sm font-medium transition-colors hover:opacity-80"
-                            style={{ color: 'var(--color-error-500)' }}
-                          >
-                            Supprimer
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Create/Edit Modal */}
-      {(isCreateModalOpen || editingSetting) && (
-        <div className="fixed inset-0 flex items-center justify-center z-50" style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}>
-          <div className="rounded-lg p-6 w-full max-w-md border" style={{
-            backgroundColor: 'var(--color-bg-secondary)',
-            borderColor: 'var(--color-border-light)'
-          }}>
-            <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--color-text-primary)' }}>
-              {editingSetting ? 'Modifier le paramètre' : 'Ajouter un paramètre'}
-            </h3>
-            
-            <form onSubmit={editingSetting ? handleUpdateSetting : handleCreateSetting}>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-primary)' }}>Catégorie</label>
-                  <select
-                    value={formData.category}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                    className="w-full border rounded px-3 py-2"
-                    style={{
-                      borderColor: 'var(--color-border-light)',
-                      backgroundColor: 'var(--color-bg-primary)',
-                      color: 'var(--color-text-primary)'
-                    }}
-                    disabled={!!editingSetting}
+        <Box sx={{ display: 'grid', gap: 3, gridTemplateColumns: { xs: '1fr', md: '300px 1fr' } }}>
+          {/* Sidebar categories */}
+          <Box>
+            <Paper variant="outlined" sx={{ p: 2 }}>
+              <Typography variant="subtitle1" fontWeight={600} sx={{ mb: 1 }}>Catégories</Typography>
+              <Stack spacing={1}>
+                {Object.entries(categoryLabels).map(([key, label]) => (
+                  <Button
+                    key={key}
+                    variant={activeCategory === key ? 'contained' : 'text'}
+                    color={activeCategory === key ? 'primary' : 'inherit'}
+                    onClick={() => setActiveCategory(key as any)}
+                    sx={{ justifyContent: 'flex-start' }}
                   >
-                    {Object.entries(categoryLabels).map(([value, label]) => (
-                      <option key={value} value={value} style={{
-                        backgroundColor: 'var(--color-bg-secondary)',
-                        color: 'var(--color-text-primary)'
-                      }}>{label}</option>
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <span>{label}</span>
+                      <Chip size="small" label={(settings[key] || []).length} />
+                    </Stack>
+                  </Button>
+                ))}
+              </Stack>
+            </Paper>
+          </Box>
+
+          {/* Content */}
+          <Box>
+            <Paper variant="outlined">
+              <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
+                <Typography variant="h6" fontWeight={600}>{categoryLabels[activeCategory]}</Typography>
+                <Typography variant="body2" color="text.secondary">{categoryDescriptions[activeCategory]}</Typography>
+              </Box>
+              <Box sx={{ p: 2 }}>
+                {currentSettings.length === 0 ? (
+                  <Typography variant="body2" color="text.secondary" align="center" sx={{ py: 4 }}>
+                    Aucun paramètre configuré pour cette catégorie.
+                  </Typography>
+                ) : (
+                  <Stack spacing={1}>
+                    {currentSettings.map((s) => (
+                      <Paper key={s.id} variant="outlined" sx={{ p: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <Box>
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <Typography fontWeight={600}>{s.label || s.value}</Typography>
+                            <Chip size="small" label={s.value} />
+                            {s.order != null && <Chip size="small" color="primary" label={`Ordre: ${s.order}`} />}
+                          </Stack>
+                          {s.description && (
+                            <Typography variant="body2" color="text.secondary">{s.description}</Typography>
+                          )}
+                        </Box>
+                        <Box>
+                          <IconButton onClick={() => openEdit(s)} aria-label="edit"><Edit /></IconButton>
+                          <IconButton onClick={() => onDelete(s.id)} aria-label="delete" color="error"><Delete /></IconButton>
+                        </Box>
+                      </Paper>
                     ))}
-                  </select>
-                </div>
+                  </Stack>
+                )}
+              </Box>
+            </Paper>
+          </Box>
+        </Box>
 
-                <div>
-                  <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-primary)' }}>Valeur *</label>
-                  <input
-                    type="text"
-                    value={formData.value}
-                    onChange={(e) => setFormData({ ...formData, value: e.target.value })}
-                    className="w-full border rounded px-3 py-2"
-                    style={{
-                      borderColor: 'var(--color-border-light)',
-                      backgroundColor: 'var(--color-bg-primary)',
-                      color: 'var(--color-text-primary)'
-                    }}
-                    required
-                    placeholder="ex: beginner, advanced, salle-1"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-primary)' }}>Libellé</label>
-                  <input
-                    type="text"
-                    value={formData.label}
-                    onChange={(e) => setFormData({ ...formData, label: e.target.value })}
-                    className="w-full border rounded px-3 py-2"
-                    style={{
-                      borderColor: 'var(--color-border-light)',
-                      backgroundColor: 'var(--color-bg-primary)',
-                      color: 'var(--color-text-primary)'
-                    }}
-                    placeholder="ex: Débutant, Avancé, Salle 1"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-primary)' }}>Description</label>
-                  <textarea
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    className="w-full border rounded px-3 py-2"
-                    style={{
-                      borderColor: 'var(--color-border-light)',
-                      backgroundColor: 'var(--color-bg-primary)',
-                      color: 'var(--color-text-primary)'
-                    }}
-                    rows={2}
-                    placeholder="Description optionnelle"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-primary)' }}>Ordre d'affichage</label>
-                  <input
-                    type="number"
-                    value={formData.order}
-                    onChange={(e) => setFormData({ ...formData, order: parseInt(e.target.value) || 0 })}
-                    className="w-full border rounded px-3 py-2"
-                    style={{
-                      borderColor: 'var(--color-border-light)',
-                      backgroundColor: 'var(--color-bg-primary)',
-                      color: 'var(--color-text-primary)'
-                    }}
-                    min="0"
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-3 mt-6">
-                <button
-                  type="button"
-                  onClick={closeModals}
-                  className="px-4 py-2 border rounded hover:opacity-80"
-                  style={{
-                    color: 'var(--color-text-secondary)',
-                    borderColor: 'var(--color-border-light)',
-                    backgroundColor: 'transparent'
-                  }}
+        {/* Create/Edit dialog */}
+        <Dialog open={dialogOpen} onClose={closeDialog} maxWidth="sm" fullWidth>
+          <DialogTitle>{editingSetting ? 'Modifier le paramètre' : 'Ajouter un paramètre'}</DialogTitle>
+          <DialogContent>
+            <Stack spacing={2} sx={{ mt: 1 }}>
+              <FormControl fullWidth disabled={!!editingSetting}>
+                <InputLabel id="category-label">Catégorie</InputLabel>
+                <Select
+                  labelId="category-label"
+                  label="Catégorie"
+                  value={formData.category}
+                  onChange={(e) => setFormData({ ...formData, category: e.target.value as any })}
                 >
-                  Annuler
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 rounded hover:opacity-80"
-                  style={{
-                    backgroundColor: 'var(--color-primary-500)',
-                    color: 'var(--color-text-primary)'
-                  }}
-                >
-                  {editingSetting ? 'Modifier' : 'Ajouter'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-    </div>
-    </div>
+                  {Object.entries(categoryLabels).map(([value, label]) => (
+                    <MenuItem key={value} value={value}>{label}</MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <TextField label="Valeur" required value={formData.value} onChange={(e) => setFormData({ ...formData, value: e.target.value })} />
+              <TextField label="Libellé" value={formData.label} onChange={(e) => setFormData({ ...formData, label: e.target.value })} />
+              <TextField label="Description" value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} multiline minRows={2} />
+              <TextField label="Ordre d'affichage" type="number" value={formData.order ?? 0} onChange={(e) => setFormData({ ...formData, order: parseInt(e.target.value || '0', 10) })} />
+            </Stack>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={closeDialog} startIcon={<Close />}>Annuler</Button>
+            <Button onClick={onSubmit} variant="contained">{editingSetting ? 'Enregistrer' : 'Ajouter'}</Button>
+          </DialogActions>
+        </Dialog>
+      </Container>
+    </ThemeRegistry>
   );
 }

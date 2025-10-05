@@ -1,7 +1,7 @@
 "use client"
 import React, { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import ThemeRegistry from "../components/layout/ThemeRegistry"
+import ThemeRegistry from "../theme/ThemeRegistry"
 import authService from "../services/authService"
 
 // MUI

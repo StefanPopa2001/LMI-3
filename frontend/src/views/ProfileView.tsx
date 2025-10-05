@@ -23,7 +23,7 @@ import {
 } from '@mui/icons-material';
 import { useRouter } from 'next/navigation';
 
-import ThemeRegistry from '../components/layout/ThemeRegistry';
+import ThemeRegistry from '../theme/ThemeRegistry';
 import NavBar from '../components/layout/NavBar';
 import BackButton from '../components/ui/BackButton';
 import authService, { User } from '../services/authService';

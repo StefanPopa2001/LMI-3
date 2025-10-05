@@ -7,16 +7,16 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    networks:
-      - network-starco-global
     restart: always
 
   redis_lmi3:
     image: redis:7-alpine
-    networks:
-      - network-starco-global
+    ports:
+      - "6379:6379"
     restart: always
 
   backend_lmi3:
@@ -39,8 +39,6 @@ services:
     volumes:
       - ./backend:/app
       - /app/node_modules
-    networks:
-      - network-starco-global
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:4000/health"]
       interval: 30s
@@ -79,8 +77,6 @@ services:
     # Do not mount the host source into /app in production -- it hides the built standalone
     # volumes:
     #  - ./frontend:/app:ro
-    networks:
-      - network-starco-global
     labels:
       - "traefik.enable=true"
       # Serve the frontend under /LMI3/Webapp
@@ -92,11 +88,6 @@ services:
       - "traefik.http.services.frontend-service.loadbalancer.server.port=3000"
       # Do not strip the prefix, let Next.js handle the basePath
       # - "traefik.http.middlewares.web-stripprefix.stripprefix.prefixes=/LMI3/Webapp"
-
-networks:
-  network-starco-global:
-    external: true
-    name: docker_starco_network_network-starco-global
 
 volumes:
   postgres_data:

@@ -3,7 +3,7 @@ import React from 'react';
 import { Box, Typography, Container } from '@mui/material';
 import { AttachMoney } from '@mui/icons-material';
 
-import ThemeRegistry from '../components/layout/ThemeRegistry';
+import ThemeRegistry from '../theme/ThemeRegistry';
 import NavBar from '../components/layout/NavBar';
 import BackButton from '../components/ui/BackButton';
 

@@ -1,7 +1,8 @@
 'use client';
 import React from 'react';
 import { Box, Container, Paper, Typography } from '@mui/material';
-import { usePageTheme } from './PageThemeProvider';
+import { useTheme } from '@mui/material/styles';
+// Fixed dark theme; no per-page theming
 
 interface PageLayoutProps {
   title?: string;
@@ -22,16 +23,17 @@ export default function PageLayout({
   fullWidth = false,
   backgroundColor = 'default',
 }: PageLayoutProps) {
-  const { currentTheme } = usePageTheme();
+  // per-page theming removed; use global MUI theme
+  const theme = useTheme();
 
   const getBackgroundColor = () => {
     switch (backgroundColor) {
       case 'paper':
-        return currentTheme.palette.background.paper;
+        return theme.palette.background.paper;
       case 'transparent':
         return 'transparent';
       default:
-        return currentTheme.palette.background.default;
+        return theme.palette.background.default;
     }
   };
 
@@ -53,7 +55,7 @@ export default function PageLayout({
                 component="h1"
                 sx={{
                   fontWeight: 700,
-                  color: currentTheme.palette.text.primary,
+                  color: 'text.primary',
                   mb: subtitle ? 2 : 0,
                   fontSize: { xs: '2rem', sm: '2.5rem', md: '3rem' },
                 }}
@@ -65,7 +67,7 @@ export default function PageLayout({
               <Typography
                 variant="h6"
                 sx={{
-                  color: currentTheme.palette.text.secondary,
+                  color: 'text.secondary',
                   fontWeight: 400,
                   maxWidth: 600,
                   mx: 'auto',
@@ -124,7 +126,8 @@ export function FormPageLayout({
   centered = true,
   ...props
 }: FormPageLayoutProps) {
-  const { currentTheme } = usePageTheme();
+  // per-page theming removed; use global MUI theme
+  const theme = useTheme();
 
   return (
     <PageLayout
@@ -149,8 +152,8 @@ export function FormPageLayout({
             width: '100%',
             maxWidth: 480,
             borderRadius: 3,
-            backgroundColor: currentTheme.palette.background.paper,
-            border: `1px solid ${currentTheme.palette.divider}`,
+            backgroundColor: theme.palette.background.paper,
+            border: `1px solid ${theme.palette.divider}`,
           }}
         >
           {children}

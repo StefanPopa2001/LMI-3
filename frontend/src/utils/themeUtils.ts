@@ -1,7 +1,7 @@
-import { colorPalette, tailwindColors, getCardColor, getTailwindClasses } from '@/theme';
+import { colorPalette, getCardColor } from '@/theme';
 
-// Re-export everything from ThemeRegistry for easy access
-export { colorPalette, tailwindColors, getCardColor, getTailwindClasses };
+// Re-export minimal theme bits
+export { colorPalette, getCardColor };
 
 // Additional utility functions for common use cases
 
@@ -27,53 +27,7 @@ export const getStatusColor = (status: string): string => {
 /**
  * Get a complete set of classes for a themed component
  */
-export const getThemedClasses = {
-  // Page layouts
-  page: {
-    container: 'min-h-screen bg-gray-900 text-white',
-    header: 'bg-gray-800 p-6 border-b border-gray-600',
-    content: 'p-6',
-  },
-
-  // Cards
-  card: {
-    base: 'bg-gray-800 rounded-lg border border-gray-600 shadow-lg transition-all duration-200',
-    hover: 'hover:shadow-xl hover:border-blue-500',
-    header: 'p-4 border-b border-gray-600',
-    body: 'p-4',
-    footer: 'p-4 border-t border-gray-600',
-  },
-
-  // Forms
-  form: {
-    input: 'bg-gray-700 border border-gray-600 text-white placeholder-gray-400 focus:border-blue-500',
-    label: 'text-white font-medium',
-    error: 'text-red-400 text-sm',
-    success: 'text-green-400 text-sm',
-  },
-
-  // Buttons
-  button: {
-    primary: 'bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg transition-colors',
-    secondary: 'bg-gray-700 hover:bg-gray-600 text-white border border-gray-600 font-medium px-4 py-2 rounded-lg transition-colors',
-    success: 'bg-green-600 hover:bg-green-700 text-white font-medium px-4 py-2 rounded-lg transition-colors',
-    danger: 'bg-red-600 hover:bg-red-700 text-white font-medium px-4 py-2 rounded-lg transition-colors',
-  },
-
-  // Navigation
-  nav: {
-    item: 'text-gray-300 hover:text-white px-3 py-2 rounded-md transition-colors',
-    active: 'bg-blue-600 text-white',
-  },
-
-  // Status indicators
-  status: {
-    success: 'bg-success-500 text-white px-2 py-1 rounded-full text-xs font-medium',
-    error: 'bg-error-500 text-white px-2 py-1 rounded-full text-xs font-medium',
-    warning: 'bg-warning-500 text-white px-2 py-1 rounded-full text-xs font-medium',
-    info: 'bg-info-500 text-white px-2 py-1 rounded-full text-xs font-medium',
-  },
-};
+// Removed Tailwind class helpers; use MUI sx and theme instead.
 
 /**
  * Get color for specific card types
@@ -152,17 +106,13 @@ export const applyTheme = (componentStyles: Record<string, any>) => {
 export const useThemeColors = () => {
   return {
     colors: colorPalette,
-    tailwind: tailwindColors,
     getCardColor,
     getStatusColor,
-    getTailwindClasses,
     getCardTypeColor,
     getContrastText,
-    getThemedClasses,
   };
 };
 
 // Type definitions
 export type ThemeColors = typeof colorPalette;
-export type TailwindThemeColors = typeof tailwindColors;
-export type ThemedClasses = typeof getThemedClasses;
+// Tailwind types removed
