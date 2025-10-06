@@ -8,73 +8,52 @@ import {
   Menu,
   MenuItem,
   Box,
-  Chip,
-  Avatar
 } from '@mui/material';
 import {
   Dashboard as DashboardIcon,
-  AccountCircle,
   Menu as MenuIcon,
-  People as PeopleIcon,
   School as SchoolIcon,
   Analytics as AnalyticsIcon,
   CalendarToday as CalendarTodayIcon,
-  Inventory as InventoryIcon,
   Assessment as AssessmentIcon,
   Cloud as CloudIcon,
   Badge as BadgeIcon,
   Groups2 as Groups2Icon,
   Settings as SettingsIcon,
+  Replay as ReplayIcon,
+  TrendingUp as TrendingUpIcon,
+  Logout as LogoutIcon,
+  Shield as ShieldIcon,
 } from '@mui/icons-material';
 import { useRouter } from 'next/navigation';
 import authService from '../../services/authService';
-// fixed dark theme; no theme toggle
 
 interface NavBarProps {
   title?: string;
 }
 
 export default function NavBar({ title = "Logiscool Mons Intranet III" }: NavBarProps) {
-  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [burgerAnchorEl, setBurgerAnchorEl] = useState<null | HTMLElement>(null);
   const [mounted, setMounted] = useState(false);
   const router = useRouter();
-  // no theme toggling
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  const handleMenu = (event: React.MouseEvent<HTMLElement>) => {
-    setAnchorEl(event.currentTarget);
-  };
+  const currentUser = authService.getCurrentUser();
 
   const handleBurgerMenu = (event: React.MouseEvent<HTMLElement>) => {
     setBurgerAnchorEl(event.currentTarget);
-  };
-
-  const handleClose = () => {
-    setAnchorEl(null);
   };
 
   const handleBurgerClose = () => {
     setBurgerAnchorEl(null);
   };
 
-  const handleProfile = () => {
-    handleClose();
-    router.push('/profile');
-  };
-
-  const handleLogout = () => {
-    handleClose();
-    authService.logout();
-    router.push('/login');
-  };
-
-  const handleSettings = () => {
-    handleClose();
-    router.push('/settings');
+  const handleNavigateToDashboard = () => {
+    handleBurgerClose();
+    router.push('/dashboard');
   };
 
   const handleNavigateToUsers = () => {
@@ -84,7 +63,7 @@ export default function NavBar({ title = "Logiscool Mons Intranet III" }: NavBar
 
   const handleNavigateToEleves = () => {
     handleBurgerClose();
-    router.push('/users/crud');
+    router.push('/eleves');
   };
 
   const handleNavigateToClasses = () => {
@@ -94,7 +73,7 @@ export default function NavBar({ title = "Logiscool Mons Intranet III" }: NavBar
 
   const handleNavigateToAnalytics = () => {
     handleBurgerClose();
-    router.push('/stats');
+    router.push('/analytics');
   };
 
   const handleNavigateToStats = () => {
@@ -102,15 +81,9 @@ export default function NavBar({ title = "Logiscool Mons Intranet III" }: NavBar
     router.push('/stats');
   };
 
-
   const handleNavigateToAttendance = () => {
     handleBurgerClose();
     router.push('/attendance');
-  };
-
-  const handleNavigateToDashboard = () => {
-    handleBurgerClose();
-    router.push('/dashboard');
   };
 
   const handleNavigateToDrive = () => {
@@ -118,8 +91,11 @@ export default function NavBar({ title = "Logiscool Mons Intranet III" }: NavBar
     router.push('/drive');
   };
 
-  const currentUser = mounted ? authService.getCurrentUser() : null;
-  const userInitial = currentUser?.prenom ? currentUser.prenom.charAt(0).toUpperCase() : '?';
+  const handleLogout = () => {
+    handleBurgerClose();
+    authService.logout();
+    router.push('/login');
+  };
 
   if (!mounted) {
     return (
@@ -135,21 +111,21 @@ export default function NavBar({ title = "Logiscool Mons Intranet III" }: NavBar
           >
             <MenuIcon />
           </IconButton>
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1, fontWeight: 'bold', color: '#2196f3', fontFamily: 'var(--font-montserrat)', textTransform: 'uppercase', letterSpacing: '0.5px', cursor: 'pointer' }}>
-            <Box sx={{ display: { xs: 'block', sm: 'none' } }}>LMI3</Box>
-            <Box sx={{ display: { xs: 'none', sm: 'block' } }}>{title}</Box>
-          </Typography>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <IconButton
-              size="large"
-              aria-label="account of current user"
-              aria-controls="menu-appbar"
-              aria-haspopup="true"
-              color="inherit"
-            >
-              <AccountCircle />
-            </IconButton>
+          
+          {/* Centered Title */}
+          <Box sx={{ flexGrow: 1, display: 'flex', justifyContent: 'center' }}>
+            <Typography variant="h6" component="div" sx={{ fontWeight: 'bold', color: '#2196f3', fontFamily: 'var(--font-montserrat)', textTransform: 'uppercase', letterSpacing: '0.5px', cursor: 'pointer' }}>
+              <Box sx={{ display: { xs: 'block', sm: 'none' } }}>LMI3</Box>
+              <Box sx={{ display: { xs: 'none', sm: 'block' } }}>{title}</Box>
+            </Typography>
           </Box>
+          
+          {/* Admin Shield on the right */}
+          {currentUser?.admin && (
+            <Box sx={{ ml: 2 }}>
+              <ShieldIcon sx={{ color: '#666', fontSize: '1.5em' }} />
+            </Box>
+          )}
         </Toolbar>
       </AppBar>
     );
@@ -168,120 +144,96 @@ export default function NavBar({ title = "Logiscool Mons Intranet III" }: NavBar
         >
           <MenuIcon />
         </IconButton>
-        <Typography 
-          variant="h6" 
-          component="div" 
-          sx={{ 
-            flexGrow: 1, 
-            fontWeight: 'bold', 
-            color: '#2196f3', 
-            fontFamily: 'var(--font-montserrat)', 
-            textTransform: 'uppercase', 
-            letterSpacing: '0.5px',
-            cursor: 'pointer',
-            '&:hover': {
-              color: '#64b5f6'
-            }
-          }}
-          onClick={() => router.push('/dashboard')}
-        >
-          <Box sx={{ display: { xs: 'block', sm: 'none' } }}>LMI3</Box>
-          <Box sx={{ display: { xs: 'none', sm: 'block' } }}>{title}</Box>
-        </Typography>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <IconButton
-            size="large"
-            aria-label="account of current user"
-            aria-controls="menu-appbar"
-            aria-haspopup="true"
-            onClick={handleMenu}
-            color="inherit"
+        
+        {/* Centered Title with Admin Shield */}
+        <Box sx={{ flexGrow: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+          <Typography
+            variant="h6"
+            component="div"
+            sx={{
+              fontWeight: 'bold',
+              color: '#2196f3',
+              fontFamily: 'var(--font-montserrat)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+              cursor: 'pointer',
+              '&:hover': {
+                color: '#64b5f6'
+              }
+            }}
+            onClick={() => router.push('/dashboard')}
           >
-            {currentUser ? (
-              <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main' }}>
-                {userInitial}
-              </Avatar>
-            ) : (
-              <AccountCircle />
-            )}
-          </IconButton>
-          <Menu
-            id="menu-appbar"
-            anchorEl={anchorEl}
-            anchorOrigin={{
-              vertical: 'top',
-              horizontal: 'right',
-            }}
-            keepMounted
-            transformOrigin={{
-              vertical: 'top',
-              horizontal: 'right',
-            }}
-            open={Boolean(anchorEl)}
-            onClose={handleClose}
-          >
-            <MenuItem onClick={handleSettings}>Settings</MenuItem>
-            <MenuItem onClick={handleProfile}>Profile</MenuItem>
-            <MenuItem onClick={handleLogout}>Logout</MenuItem>
-          </Menu>
-          <Menu
-            id="burger-menu-appbar"
-            anchorEl={burgerAnchorEl}
-            anchorOrigin={{
-              vertical: 'top',
-              horizontal: 'left',
-            }}
-            keepMounted
-            transformOrigin={{
-              vertical: 'top',
-              horizontal: 'left',
-            }}
-            open={Boolean(burgerAnchorEl)}
-            onClose={handleBurgerClose}
-          >
-            <MenuItem onClick={handleNavigateToDashboard}>
-              <DashboardIcon sx={{ mr: 1 }} />
-              Dashboard
-            </MenuItem>
-            <MenuItem onClick={handleNavigateToUsers}>
-              <BadgeIcon sx={{ mr: 1 }} />
-              Gestion des utilisateurs
-            </MenuItem>
-            {currentUser?.admin && (
-              <MenuItem onClick={() => { handleBurgerClose(); router.push('/settings'); }}>
-                <SettingsIcon sx={{ mr: 1 }} />
-                Settings
-              </MenuItem>
-            )}
-            <MenuItem onClick={handleNavigateToEleves}>
-              <Groups2Icon sx={{ mr: 1 }} />
-              Gestion des élèves
-            </MenuItem>
-            <MenuItem onClick={handleNavigateToClasses}>
-              <SchoolIcon sx={{ mr: 1 }} />
-              Classes
-            </MenuItem>
-            <MenuItem onClick={handleNavigateToAnalytics}>
-              <AnalyticsIcon sx={{ mr: 1 }} />
-              Rattrapages et Récupérations
-            </MenuItem>
-            <MenuItem onClick={handleNavigateToStats}>
-              <AssessmentIcon sx={{ mr: 1 }} />
-              Statistiques
-            </MenuItem>
-            <MenuItem onClick={handleNavigateToAttendance}>
-              <CalendarTodayIcon sx={{ mr: 1 }} />
-              Carnet des présences
-            </MenuItem>
-            
-            {currentUser?.admin && (
-              <MenuItem onClick={handleNavigateToDrive}>
-                <CloudIcon sx={{ mr: 1 }} />
-                Drive
-              </MenuItem>
-            )}
-          </Menu>
+            <Box sx={{ display: { xs: 'block', sm: 'none' } }}>LMI3</Box>
+            <Box sx={{ display: { xs: 'none', sm: 'block' } }}>{title}</Box>
+          </Typography>
         </Box>
+        
+        {/* Admin Shield on the right */}
+        {currentUser?.admin && (
+          <Box sx={{ ml: 2 }}>
+            <ShieldIcon sx={{ color: '#666', fontSize: '1.5em' }} />
+          </Box>
+        )}
+        <Menu
+          id="burger-menu-appbar"
+          anchorEl={burgerAnchorEl}
+          anchorOrigin={{
+            vertical: 'top',
+            horizontal: 'left',
+          }}
+          keepMounted
+          transformOrigin={{
+            vertical: 'top',
+            horizontal: 'left',
+          }}
+          open={Boolean(burgerAnchorEl)}
+          onClose={handleBurgerClose}
+        >
+          <MenuItem onClick={handleNavigateToDashboard}>
+            <DashboardIcon sx={{ mr: 1 }} />
+            Dashboard
+          </MenuItem>
+          <MenuItem onClick={handleNavigateToUsers}>
+            <BadgeIcon sx={{ mr: 1 }} />
+            Gestion des utilisateurs
+          </MenuItem>
+          {currentUser?.admin && (
+            <MenuItem onClick={() => { handleBurgerClose(); router.push('/settings'); }}>
+              <SettingsIcon sx={{ mr: 1 }} />
+              Settings
+            </MenuItem>
+          )}
+          <MenuItem onClick={handleNavigateToEleves}>
+            <Groups2Icon sx={{ mr: 1 }} />
+            Gestion des élèves
+          </MenuItem>
+          <MenuItem onClick={handleNavigateToClasses}>
+            <SchoolIcon sx={{ mr: 1 }} />
+            Classes
+          </MenuItem>
+          <MenuItem onClick={handleNavigateToAnalytics}>
+            <ReplayIcon sx={{ mr: 1 }} />
+            Rattrapages et Récupérations
+          </MenuItem>
+          <MenuItem onClick={handleNavigateToStats}>
+            <TrendingUpIcon sx={{ mr: 1 }} />
+            Statistiques
+          </MenuItem>
+          <MenuItem onClick={handleNavigateToAttendance}>
+            <CalendarTodayIcon sx={{ mr: 1 }} />
+            Carnet des présences
+          </MenuItem>
+          {currentUser?.admin && (
+            <MenuItem onClick={handleNavigateToDrive}>
+              <CloudIcon sx={{ mr: 1 }} />
+              Drive
+            </MenuItem>
+          )}
+          <MenuItem onClick={handleLogout}>
+            <LogoutIcon sx={{ mr: 1 }} />
+            Déconnexion
+          </MenuItem>
+        </Menu>
       </Toolbar>
     </AppBar>
   );

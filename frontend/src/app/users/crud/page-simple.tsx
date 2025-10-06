@@ -4,6 +4,7 @@ import Handsontable from "handsontable";
 import "handsontable/dist/handsontable.full.min.css";
 import { Box, Button, Typography, Paper, Stack } from "@mui/material";
 import { Edit, Save, Refresh } from "@mui/icons-material";
+import { toast } from 'react-toastify';
 
 type User = {
   id: number;
@@ -28,7 +29,7 @@ export default function UsersCrudPage() {
       setUsers(data);
     } catch (error) {
       console.error(error);
-      alert((error as Error).message);
+      toast.error((error as Error).message);
     } finally {
       setLoading(false);
     }
@@ -42,7 +43,7 @@ export default function UsersCrudPage() {
   const saveChanges = useCallback(async () => {
     if (changes.length === 0) return;
     console.log('Saving changes:', changes);
-    alert(`Saved ${changes.length} changes successfully!`);
+    toast.success(`Saved ${changes.length} changes successfully!`);
     setChanges([]);
   }, [changes]);
 

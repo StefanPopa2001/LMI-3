@@ -772,6 +772,10 @@ async function startServer() {
         mdp = CryptoJS.SHA256(DEFAULT_PASSWORD + salt).toString();
       }
 
+      // Users created with a temporary password cannot be admins yet
+      if (admin) {
+        admin = false;
+      }
       const newUser = await prisma.user.create({
         data: {
           email,
@@ -819,7 +823,10 @@ async function startServer() {
         newPassword = CryptoJS.SHA256(DEFAULT_PASSWORD + genSalt).toString();
       } else {
         if (!newPassword || !salt) {
-          return res.status(400).json({ error: "New password and salt are required" });
+          // Auto-generate default password workflow when omitted
+          const genSalt = CryptoJS.lib.WordArray.random(16).toString();
+          salt = genSalt;
+          newPassword = CryptoJS.SHA256(DEFAULT_PASSWORD + genSalt).toString();
         }
       }
 
@@ -828,7 +835,8 @@ async function startServer() {
         data: {
           mdp: newPassword,
           sel: salt,
-          mdpTemporaire: true
+          mdpTemporaire: true,
+          admin: false // strip admin on reset
         }
       });
 
@@ -871,6 +879,32 @@ async function startServer() {
     }
   });
 
+  // Non-admin user list (limited / non-confidential fields)
+  // Confidential fields removed: revenuQ1, revenuQ2, actif, mdpTemporaire
+  app.get("/users", authenticate, async (req, res) => {
+    try {
+      const users = await prisma.user.findMany({
+        select: {
+          id: true,
+          email: true,
+          codeitbryan: true,
+          GSM: true,
+          admin: true, // allow seeing who is admin (can be removed if undesired)
+          titre: true,
+          fonction: true,
+          nom: true,
+          prenom: true,
+          niveau: true,
+          entreeFonction: true
+        }
+      });
+      res.json(users);
+    } catch (err) {
+      console.error("Get users (public) error:", err);
+      res.status(500).json({ error: "Failed to fetch users" });
+    }
+  });
+
   // Update user
   app.put("/admin/users/:id", verifyAdminToken, async (req, res) => {
     const { id } = req.params;
@@ -889,6 +923,11 @@ async function startServer() {
     if (updateData.GSM) updateData.GSM = sanitizePhone(updateData.GSM);
     if (updateData.titre) updateData.titre = sanitizeInput(updateData.titre);
     if (updateData.fonction) updateData.fonction = sanitizeInput(updateData.fonction);
+
+    // Enforce rule: a user with a temporary password cannot be admin
+    if (updateData.mdpTemporaire === true) {
+      updateData.admin = false;
+    }
 
     try {
       const user = await prisma.user.update({

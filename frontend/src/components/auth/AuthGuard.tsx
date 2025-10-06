@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import authService from '../../services/authService';
 import LoadingOverlay from '@/ui/feedback/LoadingOverlay';
-import { useToast } from '../ui/ToastManager';
+import { toast } from 'react-toastify';
 
 // Public (unauthenticated) routes allowed
 const PUBLIC_ROUTES = new Set<string>(['/login']);
@@ -15,7 +15,6 @@ interface AuthGuardProps {
 export default function AuthGuard({ children }: AuthGuardProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const { error: showError } = useToast();
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
@@ -36,7 +35,7 @@ export default function AuthGuard({ children }: AuthGuardProps) {
     };
 
     enforceAuth();
-  }, [pathname, router, showError]);
+  }, [pathname, router]);
 
   if (checking) {
     // Render minimal shell to match server markup (avoid hydration diff)

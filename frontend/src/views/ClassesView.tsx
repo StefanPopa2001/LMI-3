@@ -66,7 +66,7 @@ import eleveService, { type Eleve } from '@/services/eleveService';
 import authService from '@/services/authService';
 import attendanceService from '@/services/attendanceService';
 import NavBar from '../components/layout/NavBar';
-import { useToast } from '../components/ui/ToastManager';
+import { toast } from 'react-toastify';
 
 interface User {
   id: number;
@@ -102,7 +102,6 @@ function TabPanel(props: TabPanelProps) {
 }
 
 const ClassesView: React.FC = () => {
-  const { success: showSuccess, error: showError } = useToast();
   const [classes, setClasses] = useState<Classe[]>([]);
   const [teachers, setTeachers] = useState<User[]>([]);
   const [students, setStudents] = useState<Eleve[]>([]);
@@ -226,7 +225,7 @@ const ClassesView: React.FC = () => {
       )];
       setUniqueStartTimes(startTimes);
     } catch (err) {
-      showError(err instanceof Error ? err.message : 'Erreur lors du chargement des données');
+      toast.error(err instanceof Error ? err.message : 'Erreur lors du chargement des données');
     } finally {
       setLoading(false);
     }
@@ -235,7 +234,7 @@ const ClassesView: React.FC = () => {
   const handleCreateClass = async () => {
     // validate heureDebut
     if (!isValid24Hour(classForm.heureDebut)) {
-      showError('Heure de début invalide. Format attendu HH:MM (24h)');
+      toast.error('Heure de début invalide. Format attendu HH:MM (24h)');
       return;
     }
 
@@ -245,7 +244,7 @@ const ClassesView: React.FC = () => {
       
       // Validate that we have valid weeks
       if (currentYearWeeks.length === 0 && nextYearWeeks.length === 0) {
-        showError('Veuillez saisir au moins un numéro de semaine valide');
+        toast.error('Veuillez saisir au moins un numéro de semaine valide');
         return;
       }
       
@@ -253,7 +252,7 @@ const ClassesView: React.FC = () => {
       const allWeeks = [...currentYearWeeks, ...nextYearWeeks.map(week => week + 52)];
       const uniqueWeeks = [...new Set(allWeeks)];
       if (uniqueWeeks.length !== allWeeks.length) {
-        showError('Des numéros de semaine sont dupliqués');
+        toast.error('Des numéros de semaine sont dupliqués');
         return;
       }
       
@@ -281,16 +280,16 @@ const ClassesView: React.FC = () => {
           dureeSeance: classForm.dureeSeance as number,
           nombreSemaines: 10
         });
-        showSuccess('Classe créée et séances générées avec succès');
+        toast.success('Classe créée et séances générées avec succès');
       } catch (genErr) {
         console.warn('Auto-generation failed:', genErr);
-        showSuccess('Classe créée avec succès (génération des séances à faire)');
+        toast.success('Classe créée avec succès (génération des séances à faire)');
       }
       setIsCreateDialogOpen(false);
       resetClassForm();
       loadData();
     } catch (err) {
-      showError(err instanceof Error ? err.message : 'Erreur lors de la création de la classe');
+      toast.error(err instanceof Error ? err.message : 'Erreur lors de la création de la classe');
     }
   };
 
@@ -298,7 +297,7 @@ const ClassesView: React.FC = () => {
     if (!selectedClass) return;
     // validate heureDebut
     if (!isValid24Hour(classForm.heureDebut)) {
-      showError('Heure de début invalide. Format attendu HH:MM (24h)');
+      toast.error('Heure de début invalide. Format attendu HH:MM (24h)');
       return;
     }
 
@@ -308,7 +307,7 @@ const ClassesView: React.FC = () => {
       
       // Validate that we have valid weeks
       if (currentYearWeeks.length === 0 && nextYearWeeks.length === 0) {
-        showError('Veuillez saisir au moins un numéro de semaine valide');
+        toast.error('Veuillez saisir au moins un numéro de semaine valide');
         return;
       }
       
@@ -316,7 +315,7 @@ const ClassesView: React.FC = () => {
       const allWeeks = [...currentYearWeeks, ...nextYearWeeks.map(week => week + 52)];
       const uniqueWeeks = [...new Set(allWeeks)];
       if (uniqueWeeks.length !== allWeeks.length) {
-        showError('Des numéros de semaine sont dupliqués');
+        toast.error('Des numéros de semaine sont dupliqués');
         return;
       }
       
@@ -327,12 +326,12 @@ const ClassesView: React.FC = () => {
       const updateData = { ...classForm, semainesSeances: finalWeeks };
       
   await classService.updateClass(selectedClass.id, updateData);
-  showSuccess('Classe mise à jour avec succès');
+  toast.success('Classe mise à jour avec succès');
       setIsEditDialogOpen(false);
       resetClassForm();
       loadData();
     } catch (err) {
-      showError(err instanceof Error ? err.message : 'Erreur lors de la mise à jour de la classe');
+      toast.error(err instanceof Error ? err.message : 'Erreur lors de la mise à jour de la classe');
     }
   };
 
@@ -341,10 +340,10 @@ const ClassesView: React.FC = () => {
     
     try {
       await classService.deleteClass(id);
-      showSuccess('Classe supprimée avec succès');
+      toast.success('Classe supprimée avec succès');
       loadData();
     } catch (err) {
-      showError(err instanceof Error ? err.message : 'Erreur lors de la suppression de la classe');
+      toast.error(err instanceof Error ? err.message : 'Erreur lors de la suppression de la classe');
     }
   };
 
@@ -353,12 +352,12 @@ const ClassesView: React.FC = () => {
     
     try {
       await classService.createSeance(selectedClass.id, seanceForm);
-      showSuccess('Séance créée avec succès');
+      toast.success('Séance créée avec succès');
       setIsSeanceDialogOpen(false);
       resetSeanceForm();
       loadClassDetails(selectedClass.id);
     } catch (err) {
-      showError(err instanceof Error ? err.message : 'Erreur lors de la création de la séance');
+      toast.error(err instanceof Error ? err.message : 'Erreur lors de la création de la séance');
     }
   };
 
@@ -376,7 +375,7 @@ const ClassesView: React.FC = () => {
       };
       
       await classService.updateSeance(editingSeance.id, updateData);
-      showSuccess('Séance mise à jour avec succès');
+      toast.success('Séance mise à jour avec succès');
       setIsSeanceDialogOpen(false);
       setEditingSeance(null);
       resetSeanceForm();
@@ -384,7 +383,7 @@ const ClassesView: React.FC = () => {
         loadClassDetails(selectedClass.id);
       }
     } catch (err) {
-      showError(err instanceof Error ? err.message : 'Erreur lors de la mise à jour de la séance');
+      toast.error(err instanceof Error ? err.message : 'Erreur lors de la mise à jour de la séance');
     }
   };
 
@@ -393,12 +392,12 @@ const ClassesView: React.FC = () => {
     
     try {
       await classService.deleteSeance(id);
-      showSuccess('Séance supprimée avec succès');
+      toast.success('Séance supprimée avec succès');
       if (selectedClass) {
         loadClassDetails(selectedClass.id);
       }
     } catch (err) {
-      showError(err instanceof Error ? err.message : 'Erreur lors de la suppression de la séance');
+      toast.error(err instanceof Error ? err.message : 'Erreur lors de la suppression de la séance');
     }
   };
 
@@ -428,12 +427,12 @@ const ClassesView: React.FC = () => {
         setAttendanceData(updatedAttendance);
       }
       
-      showSuccess('Présence mise à jour avec succès');
+      toast.success('Présence mise à jour avec succès');
       if (selectedClass) {
         loadClassDetails(selectedClass.id);
       }
     } catch (err) {
-      showError(err instanceof Error ? err.message : 'Erreur lors de la mise à jour de la présence');
+      toast.error(err instanceof Error ? err.message : 'Erreur lors de la mise à jour de la présence');
     }
   };
 
@@ -441,17 +440,17 @@ const ClassesView: React.FC = () => {
     if (!selectedClass) return;
     // validate heureDebut for generate form
     if (!isValid24Hour(generateForm.heureDebut)) {
-      showError('Heure de début invalide. Format attendu HH:MM (24h)');
+      toast.error('Heure de début invalide. Format attendu HH:MM (24h)');
       return;
     }
 
     try {
       const result = await classService.generateSeances(selectedClass.id, generateForm);
-      showSuccess(`${result.count} séances générées avec succès`);
+      toast.success(`${result.count} séances générées avec succès`);
       setIsGenerateDialogOpen(false);
       loadClassDetails(selectedClass.id);
     } catch (err) {
-      showError(err instanceof Error ? err.message : 'Erreur lors de la génération des séances');
+      toast.error(err instanceof Error ? err.message : 'Erreur lors de la génération des séances');
     }
   };
 
@@ -460,7 +459,7 @@ const ClassesView: React.FC = () => {
       const classData = await classService.getClass(classId);
       setSelectedClass(classData);
     } catch (err) {
-      showError(err instanceof Error ? err.message : 'Erreur lors du chargement des détails de la classe');
+      toast.error(err instanceof Error ? err.message : 'Erreur lors du chargement des détails de la classe');
     }
   };
 
@@ -539,7 +538,7 @@ const ClassesView: React.FC = () => {
       const attendance = await attendanceService.getSeanceAttendance(seance.id);
       setAttendanceData(attendance);
     } catch (err) {
-      showError('Erreur lors du chargement des données de présence');
+      toast.error('Erreur lors du chargement des données de présence');
       setAttendanceData(null);
     }
     setIsAttendanceModalOpen(true);

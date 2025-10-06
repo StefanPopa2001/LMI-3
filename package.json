@@ -8,6 +8,7 @@
     "dev:js": "concurrently -n backend,frontend -c blue,green \"npm:dev --workspace backend\" \"npm:dev --workspace frontend\""
   },
   "devDependencies": {
+    "@types/handsontable": "^0.31.2",
     "concurrently": "^9.2.1"
   },
   "workspaces": [
@@ -15,6 +16,7 @@
     "frontend"
   ],
   "dependencies": {
+    "handsontable": "^16.1.1",
     "lucide-react": "^0.544.0"
   }
 }

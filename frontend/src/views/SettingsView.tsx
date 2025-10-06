@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import NavBar from '../components/layout/NavBar';
-import { useToast } from '../components/ui/ToastManager';
+import { toast } from 'react-toastify';
 import { settingsService, Setting, GroupedSettings, CreateSettingData } from '../services/settingsService';
 import ThemeRegistry from '../theme/ThemeRegistry';
 import {
@@ -44,7 +44,6 @@ const categoryDescriptions: Record<string, string> = {
 
 export default function SettingsView() {
   const router = useRouter();
-  const { success: showSuccess, error: showError } = useToast();
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [settings, setSettings] = useState<GroupedSettings>({});
@@ -77,7 +76,7 @@ export default function SettingsView() {
         router.push('/login');
         return;
       }
-      showError(err.message || 'Erreur lors du chargement des paramètres');
+      toast.error(err.message || 'Erreur lors du chargement des paramètres');
     } finally {
       setLoading(false);
     }
@@ -111,15 +110,15 @@ export default function SettingsView() {
           description: formData.description,
           order: formData.order,
         });
-        showSuccess('Paramètre mis à jour');
+        toast.success('Paramètre mis à jour');
       } else {
         await settingsService.createSetting(formData);
-        showSuccess('Paramètre créé');
+        toast.success('Paramètre créé');
       }
       closeDialog();
       await loadSettings();
     } catch (err: any) {
-      showError(err.message || 'Opération impossible');
+      toast.error(err.message || 'Opération impossible');
     }
   };
 
@@ -127,10 +126,10 @@ export default function SettingsView() {
     if (!confirm('Supprimer ce paramètre ?')) return;
     try {
       await settingsService.deleteSetting(id);
-      showSuccess('Paramètre supprimé');
+      toast.success('Paramètre supprimé');
       await loadSettings();
     } catch (err: any) {
-      showError(err.message || 'Suppression impossible');
+      toast.error(err.message || 'Suppression impossible');
     }
   };
 

@@ -1,6 +1,8 @@
 "use client"
 import React, { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import { toast, ToastContainer } from "react-toastify"
+import 'react-toastify/dist/ReactToastify.css'
 import ThemeRegistry from "../theme/ThemeRegistry"
 import authService from "../services/authService"
 
@@ -35,7 +37,6 @@ export default function LoginView() {
 
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
   const [showPasswordChange, setShowPasswordChange] = useState(false)
   const [newPassword, setNewPassword] = useState("")
@@ -52,15 +53,14 @@ export default function LoginView() {
 
   const handleApiError = (err: any) => {
     if (err?.message && String(err.message).startsWith("AUTH_ERROR:")) {
-      setError("Session expirée. Veuillez vous reconnecter.")
+      toast.error("Session expirée. Veuillez vous reconnecter.")
       return
     }
-    setError(err?.message ?? String(err))
+    toast.error(err?.message ?? String(err))
   }
 
   async function handleLogin(e?: React.FormEvent) {
     e?.preventDefault()
-    setError("")
     setLoading(true)
 
     try {
@@ -79,10 +79,9 @@ export default function LoginView() {
 
   const handlePasswordChange = async () => {
     if (newPassword !== confirmPassword) {
-      setError("Les mots de passe ne correspondent pas")
+      toast.error("Les mots de passe ne correspondent pas")
       return
     }
-    setError("")
     setLoading(true)
     try {
       await authService.changePassword("", newPassword)
@@ -96,188 +95,222 @@ export default function LoginView() {
   }
 
   return (
+    <>
     <ThemeRegistry>
-      <Container
-        maxWidth="sm"
+      <Box
         sx={{
           minHeight: '100vh',
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          py: 4,
+          flexDirection: { xs: 'column', md: 'row' },
           background: theme.palette.background.default,
         }}
       >
-        <Box sx={{ width: '100%' }}>
-          <Card sx={{ mx: 2, borderRadius: 3 }}>
-            <CardContent sx={{ p: { xs: 3, sm: 6 } }}>
-              <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                <Box
-                  sx={{
-                    width: 72,
-                    height: 72,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    borderRadius: '50%',
-                    bgcolor: 'primary.light',
-                  }}
-                >
-                  <SchoolIcon sx={{ color: 'primary.dark', fontSize: 34 }} />
-                </Box>
-
-                <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
-                  Logiscool Mons Intranet III
-                </Typography>
-
-                <Typography variant="body2" sx={{ color: 'text.secondary', textAlign: 'center' }}>
-                  Connectez vous avec le compte fourni par votre administrateur.
-                </Typography>
-
-                {error && (
-                  <Box sx={{ width: '100%', mt: 1 }}>
-                    <Box sx={{ p: 2, bgcolor: 'error.light', borderRadius: 1 }}>
-                      <Typography variant="body2" sx={{ color: 'error.dark' }}>
-                        {error}
-                      </Typography>
-                    </Box>
-                  </Box>
-                )}
-
-                <Box component="form" onSubmit={handleLogin} sx={{ width: '100%', mt: 1 }}>
-                  <TextField
-                    label="Email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    fullWidth
-                    margin="normal"
-                    variant="outlined"
-                    InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <EmailIcon />
-                        </InputAdornment>
-                      ),
-                    }}
-                  />
-
-                  <TextField
-                    label="Mot de passe"
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    fullWidth
-                    margin="normal"
-                    variant="outlined"
-                    InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <LockIcon />
-                        </InputAdornment>
-                      ),
-                      endAdornment: (
-                        <InputAdornment position="end">
-                          <IconButton onClick={() => setShowPassword((s) => !s)} edge="end" aria-label="toggle password visibility">
-                            {showPassword ? <VisibilityOff /> : <Visibility />}
-                          </IconButton>
-                        </InputAdornment>
-                      ),
-                    }}
-                  />
-
-                  <Button
-                    type="submit"
-                    variant="contained"
-                    color="primary"
-                    disabled={loading}
-                    fullWidth
-                    sx={{ mt: 2, py: 1.5, fontWeight: 600 }}
-                    startIcon={loading ? <CircularProgress size={18} color="inherit" /> : undefined}
-                  >
-                    {loading ? 'Connexion...' : 'Se connecter'}
-                  </Button>
-                </Box>
-
-                <Typography variant="caption" sx={{ color: 'text.secondary', mt: 2, textAlign: 'center' }}>
-                  Contactez popa.stefan.pro@gmail.com / 048 606 50 45 en cas de problème.
-                </Typography>
-              </Box>
-            </CardContent>
-          </Card>
+        {/* Left side - Image (hidden on mobile) */}
+        <Box
+          sx={{
+            flex: 1,
+            display: { xs: 'none', md: 'flex' },
+            alignItems: 'center',
+            justifyContent: 'center',
+            bgcolor: 'primary.light',
+          }}
+        >
+          <Box
+            component="img"
+            src="/LMI3/Webapp/images/cdd_sketch.png"
+            alt="Logiscool Mons Intranet"
+            sx={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              opacity: 0.8,
+            }}
+          />
         </Box>
 
-        <Dialog open={showPasswordChange} onClose={() => setShowPasswordChange(false)} fullWidth maxWidth="sm">
-          <DialogTitle>Changement de mot de passe requis</DialogTitle>
-          <DialogContent>
-            <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', mb: 2 }}>
-              <Box sx={{ width: 40, height: 40, bgcolor: 'warning.light', borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <KeyIcon sx={{ color: 'warning.dark' }} />
-              </Box>
-              <Typography>Vous devez changer votre mot de passe avant de continuer. Choisissez un mot de passe sécurisé.</Typography>
+        {/* Right side - Login Form */}
+        <Box
+          sx={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            p: 4,
+            bgcolor: 'background.paper',
+          }}
+        >
+          <Box
+            sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 2,
+              flex: 1,
+              justifyContent: 'center',
+            }}
+          >
+            <Box
+              sx={{
+                width: { xs: 100, sm: 150, md: 200, lg: 250, xl: 300 },
+                height: { xs: 100, sm: 150, md: 200, lg: 250, xl: 300},
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Box
+                component="img"
+                src="/LMI3/Webapp/images/logo_lmi_iii.png"
+                alt="LMI III Logo"
+                sx={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'contain',
+                }}
+              />
             </Box>
 
-            <TextField
-              label="Nouveau mot de passe"
-              type={showNewPassword ? 'text' : 'password'}
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              required
-              fullWidth
-              margin="normal"
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <LockIcon />
-                  </InputAdornment>
-                ),
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton onClick={() => setShowNewPassword((s) => !s)} edge="end" aria-label="toggle new password visibility">
-                      {showNewPassword ? <VisibilityOff /> : <Visibility />}
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              }}
-              helperText="Minimum 8 caractères, inclure majuscule, minuscule et chiffre"
-            />
+            <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
+              Logiscool Mons Intranet III
+            </Typography>
 
-            <TextField
-              label="Confirmez le nouveau mot de passe"
-              type={showConfirmPassword ? 'text' : 'password'}
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              required
-              fullWidth
-              margin="normal"
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <LockIcon />
-                  </InputAdornment>
-                ),
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton onClick={() => setShowConfirmPassword((s) => !s)} edge="end" aria-label="toggle confirm password visibility">
-                      {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              }}
-            />
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setShowPasswordChange(false)} color="secondary">
-              Annuler
-            </Button>
-            <Button onClick={handlePasswordChange} variant="contained" color="primary" disabled={loading || !newPassword || !confirmPassword}>
-              {loading ? <CircularProgress size={18} color="inherit" /> : 'Changer le mot de passe'}
-            </Button>
-          </DialogActions>
-        </Dialog>
-      </Container>
+            <Typography variant="body2" sx={{ color: 'text.secondary', textAlign: 'center' }}>
+              Connectez vous avec le compte fourni par votre administrateur.
+            </Typography>
+
+            <Box component="form" onSubmit={handleLogin} sx={{ width: '100%', maxWidth: 400, mt: 1 }}>
+              <TextField
+                label="Email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                fullWidth
+                margin="normal"
+                variant="outlined"
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <EmailIcon />
+                    </InputAdornment>
+                  ),
+                }}
+              />
+
+              <TextField
+                label="Mot de passe"
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                fullWidth
+                margin="normal"
+                variant="outlined"
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <LockIcon />
+                    </InputAdornment>
+                  ),
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton onClick={() => setShowPassword((s) => !s)} edge="end" aria-label="toggle password visibility">
+                        {showPassword ? <VisibilityOff /> : <Visibility />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
+              />
+
+              <Button
+                type="submit"
+                variant="contained"
+                color="primary"
+                disabled={loading}
+                fullWidth
+                sx={{ mt: 2, py: 1.5, fontWeight: 600 }}
+                startIcon={loading ? <CircularProgress size={18} color="inherit" /> : undefined}
+              >
+                {loading ? 'Connexion...' : 'Se connecter'}
+              </Button>
+            </Box>
+
+            <Typography variant="caption" sx={{ color: 'text.secondary', mt: 2, textAlign: 'center' }}>
+              Contactez popa.stefan.pro@gmail.com / 048 606 50 45 en cas de problème.
+            </Typography>
+          </Box>
+        </Box>
+      </Box>
+
+      <Dialog open={showPasswordChange} onClose={() => setShowPasswordChange(false)} fullWidth maxWidth="sm">
+        <DialogTitle>Changement de mot de passe requis</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', mb: 2 }}>
+            <Box sx={{ width: 40, height: 40, bgcolor: 'warning.light', borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <KeyIcon sx={{ color: 'warning.dark' }} />
+            </Box>
+            <Typography>Vous devez changer votre mot de passe avant de continuer. Choisissez un mot de passe sécurisé.</Typography>
+          </Box>
+
+          <TextField
+            label="Nouveau mot de passe"
+            type={showNewPassword ? 'text' : 'password'}
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            required
+            fullWidth
+            margin="normal"
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <LockIcon />
+                </InputAdornment>
+              ),
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton onClick={() => setShowNewPassword((s) => !s)} edge="end" aria-label="toggle new password visibility">
+                    {showNewPassword ? <VisibilityOff /> : <Visibility />}
+                  </IconButton>
+                </InputAdornment>
+              ),
+            }}
+            helperText="Minimum 8 caractères, inclure majuscule, minuscule et chiffre"
+          />
+
+          <TextField
+            label="Confirmez le nouveau mot de passe"
+            type={showConfirmPassword ? 'text' : 'password'}
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            required
+            fullWidth
+            margin="normal"
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <LockIcon />
+                </InputAdornment>
+              ),
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton onClick={() => setShowConfirmPassword((s) => !s)} edge="end" aria-label="toggle confirm password visibility">
+                    {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
+                  </IconButton>
+                </InputAdornment>
+              ),
+            }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowPasswordChange(false)} color="secondary">
+            Annuler
+          </Button>
+          <Button onClick={handlePasswordChange} variant="contained" color="primary" disabled={loading || !newPassword || !confirmPassword}>
+            {loading ? <CircularProgress size={18} color="inherit" /> : 'Changer le mot de passe'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </ThemeRegistry>
+    <ToastContainer position="top-right" />
+    </>
   )
 }

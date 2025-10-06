@@ -26,7 +26,7 @@ import NavBar from '../components/layout/NavBar';
 import authService from '../services/authService';
 import eleveService, { Eleve, CreateEleveData } from '../services/eleveService';
 import SimpleHotGrid from '../components/grid/SimpleHotGrid';
-import { useToast } from '../components/ui/ToastManager';
+import { toast } from 'react-toastify';
 
 interface BulkEleveData {
   nom: string;
@@ -98,7 +98,6 @@ type ColumnMeta = {
 };
 
 export default function ElevesView() {
-  const { success: showSuccess, error: showError } = useToast();
   const [eleves, setEleves] = useState<Eleve[]>([]);
   const [draftEleves, setDraftEleves] = useState<Eleve[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
@@ -125,7 +124,7 @@ export default function ElevesView() {
       router.push('/login');
       return;
     }
-    showError(err.message);
+    toast.error(err.message);
   };
 
   const isUserAuthenticated = useMemo(() => {
@@ -315,7 +314,7 @@ export default function ElevesView() {
         }
         await eleveService.updateEleve(id, payload as any);
       }
-      showSuccess(`Élèves mis à jour (${ids.length})`);
+      toast.success(`Élèves mis à jour (${ids.length})`);
       setPendingChanges({});
       await fetchEleves();
     } catch (err: any) {
@@ -331,7 +330,7 @@ export default function ElevesView() {
       try {
         setLoading(true);
         await eleveService.deleteEleve(row.id);
-        showSuccess('Élève supprimé');
+        toast.success('Élève supprimé');
         await fetchEleves();
       } catch (err: any) {
         handleApiError(err);
@@ -405,7 +404,7 @@ export default function ElevesView() {
 
   const handleBulkImport = async () => {
     const dataToImport = importData.filter(r => r.nom?.trim() || r.prenom?.trim() || r.dateNaissance?.trim());
-    if (dataToImport.length === 0) { showError('No data to import'); return; }
+    if (dataToImport.length === 0) { toast.error('No data to import'); return; }
     const errors = validateImportData(dataToImport);
     if (errors.length) { setValidationErrors(errors); return; }
     setIsImporting(true); setValidationErrors([]);
@@ -485,11 +484,11 @@ export default function ElevesView() {
     }
     setIsImporting(false);
     if (ok) {
-      showSuccess(`Successfully imported ${ok} élève(s)${fail ? ` (${fail} failed)` : ''}`);
+      toast.success(`Successfully imported ${ok} élève(s)${fail ? ` (${fail} failed)` : ''}`);
       await fetchEleves();
       if (!fail) { setImportDialog(false); setImportData([]); }
     }
-    if (fail) showError(`Failed to import ${fail} rows:\n${details.join('\n')}`);
+    if (fail) toast.error(`Failed to import ${fail} rows:\n${details.join('\n')}`);
   };
 
   const handleOpenImport = () => { initializeImportGrid(); setImportDialog(true); setValidationErrors([]); };

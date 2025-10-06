@@ -59,7 +59,7 @@ import { authService } from '@/services/authService';
 import { settingsService } from '@/services/settingsService';
 import eleveService from '@/services/eleveService';
 import NavBar from '../components/layout/NavBar';
-import { useToast } from '../components/ui/ToastManager';
+import { toast } from 'react-toastify';
 import { useRouter } from 'next/navigation';
 import RRModal from '@/components/ui/RRModal';
 import EleveDetailsModal from '@/components/ui/EleveDetailsModal';
@@ -102,7 +102,6 @@ const AttendanceView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const { error: showError, success: showSuccess } = useToast();
   const router = useRouter();
 
   const handleApiError = (err: unknown) => {
@@ -112,11 +111,11 @@ const AttendanceView: React.FC = () => {
     if (message === 'Unauthorized' || message.startsWith('AUTH_ERROR:')) {
       // Clear auth and redirect to login
       authService.logout();
-      showError('Session expirée. Veuillez vous reconnecter.');
+      toast.error('Session expirée. Veuillez vous reconnecter.');
       router.push('/login');
       return;
     }
-    showError(message);
+    toast.error(message);
   };
   const [updatingPresenceIds, setUpdatingPresenceIds] = useState<Set<number>>(new Set());
   const [isAttendanceDialogOpen, setIsAttendanceDialogOpen] = useState(false);
@@ -208,7 +207,7 @@ const AttendanceView: React.FC = () => {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erreur lors du chargement des séances';
       setError(message);
-      showError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
       setIsInitialLoad(false);
@@ -235,7 +234,7 @@ const AttendanceView: React.FC = () => {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erreur lors du chargement des séances';
       setError(message);
-      showError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }

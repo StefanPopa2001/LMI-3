@@ -41,66 +41,113 @@ model User {
 }
 
 model Eleve {
+
+  //Basic infos
   id                              Int      @id @default(autoincrement())
   nom                             String
-  prenom                          String
-  dateNaissance                   DateTime
-  idLogiscool                     String?
-  mdpLogiscool                    String?
+  dateNaissance                   DateTime?
+  numRegNationalEleve             String? @unique
+
+  //Infos Mylogiscool
+  idMyLogiscool                     String?
+  mdpMyLogiscool                    String?
+
+  //Infos inscription
   contingent                      String?
+  periodeInscription              String?
+
+  //Infos contact secrétariat & LMI
   nomCompletParent                String?
+  adresseEleve                    String?
+  codePostalEleve                 String?
+  localiteEleve                   String?
+  paysEleve                       String?
+  retourSeul                      Boolean?
+  recuperePar                     String?
+  rrRestantes                     Int?
+  abandon                         Boolean?
+  dateAbandon                     DateTime?
+
+  //Responsable 1
   nomCompletResponsable1          String?
   relationResponsable1            String?
   gsmResponsable1                 String?
   mailResponsable1                String?
+
+  //Responsable 2
   nomCompletResponsable2          String?
   relationResponsable2            String?
   gsmResponsable2                 String?
   mailResponsable2                String?
+
+  //Responsable 3
   nomCompletResponsable3          String?
   relationResponsable3            String?
   gsmResponsable3                 String?
   mailResponsable3                String?
-  retourSeul                      Boolean?
-  recuperePar                     String?
-  periodeInscription              String?
-  nombreVersements                Int?
-  boursier                        Boolean?
+
+  //Infos partenariat - Admin
+  madhesionCIB                   Boolean?
+  nomSociete                      String?
+  
+  //Infos financières - Admin
+
+  //Global
   cpas                            Boolean?
-  membreClubCIB                   Boolean?
-  nomPartenaire                   String?
+  boursier                        Boolean?
+  typeBourse                      String?
+  nombreVersements                Int?
+
+  //Q1
+  montantBourseQ1                       Float?
   montantBrutQ1                   Float?
-  reduction                       Float?
-  bourses2024Q1                   Float?
-  montantDu                       Float?
-  montantFinal                    Float?
-  montantPaye                     Float?
-  datePayment                     DateTime?
-  periodePayment                  String?
+  montantNetQ1                    Float?
+
+  //Q2
+  montantBourseQ2                 Float?
   montantBrutQ2                   Float?
+  montantNetQ2                    Float?
+
+  //total
+  montantTotalBrut                Float?
+  montantTotalNet                 Float?
+
+  //Payments
+  montantPayment1                  Float?
+  datePayment1                     DateTime?
+  montantPayment2                  Float?
+  datePayment2                     DateTime?
+  montantPayment3                  Float?
+  datePayment3                     DateTime?
+  montantPayment4                  Float?
+  datePayment4                     DateTime?
+
+  //Infos présentes dans LMI2
+  reductionQ1                      Float?
+  montantDuQ1                       Float?
+  montantFinalQ1                   Float?
+  montantPayeQ1                    Float?
+  datePaymentQ1                     DateTime?
+  periodePaymentQ1                  String?
   reductionQ2                     Float?
-  boursesQ2                       Float?
+  montantDuQ2                      Float?
   montantFinalQ2                  Float?
   montantPayeQ2                   Float?
   datePaymentQ2                   DateTime?
   periodePaymentQ2                String?
-  abandon                         Boolean?
-  dateAbandon                     DateTime?
+
+  //Autres infos - Admin
   remarques                       String?
+
+  //Infos responsable fiscal - Admin
   nomResponsableFiscal            String?
-  prenomResponsableFiscal         String?
   numRegNatResponsableFiscal      String?
-  numRegNationalEleve             String?
   dateNaissanceResponsableFiscal  DateTime?
   adresseResponsableFiscal        String?
   codePostalResponsableFiscal     String?
   localiteResponsableFiscal       String?
   paysResponsableFiscal           String?
-  adresseEleve                    String?
-  codePostalEleve                 String?
-  localiteEleve                   String?
-  paysEleve                       String?
-  rrRestantes                     Float?
+
   
   // Relations
   classeInscriptions             ClasseEleve[]

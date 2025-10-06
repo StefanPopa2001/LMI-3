@@ -236,7 +236,11 @@ class AuthService {
   }
 
   async getAllUsers(): Promise<User[]> {
-    return this.makeRequest('/admin/users');
+    // If admin fetch full dataset, else limited non-confidential list
+    if (this.isAdmin()) {
+      return this.makeRequest('/admin/users');
+    }
+    return this.makeRequest('/users');
   }
 
   async updateUser(id: number, userData: Partial<User>): Promise<User> {
@@ -279,6 +283,20 @@ class AuthService {
     return this.makeRequest(`/admin/users/${id}/deactivate`, {
       method: 'PUT',
     });
+  }
+
+  async bulkResetPasswords(ids: number[]): Promise<{ success: number; failed: number; }> {
+    let success = 0, failed = 0;
+    for (const id of ids) {
+      try {
+        // Call reset without body to trigger default password behavior
+        await this.makeRequest(`/admin/users/${id}/resetPassword`, { method: 'POST', body: JSON.stringify({}) });
+        success++;
+      } catch (e) {
+        failed++;
+      }
+    }
+    return { success, failed };
   }
 
   async deleteUser(id: number): Promise<void> {

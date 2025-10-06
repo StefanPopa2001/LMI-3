@@ -15,6 +15,9 @@ import {
   Badge as BadgeIcon,
   Groups2 as Groups2Icon,
   Settings as SettingsIcon,
+  Storage as StorageIcon,
+  Build as BuildIcon,
+  AdminPanelSettings as AdminPanelSettingsIcon,
 } from '@mui/icons-material'
 import { Dashboard as DashboardIcon } from '@mui/icons-material'
 import { Container, Typography, Box } from '@mui/material'
@@ -150,12 +153,13 @@ export default function DashboardView() {
   ]
 
   return (
-    <Box sx={{ minHeight: '100vh', background: 'linear-gradient(to bottom right, var(--color-bg-secondary), var(--color-bg-primary))' }}>
+    <Box sx={{ minHeight: '100vh', background: 'linear-gradient(to bottom right, var(--color-bg-secondary), var(--color-bg-primary))', mt: 8 }}>
       <NavBar />
-      <Container maxWidth="lg" sx={{ py: 8, pt: 20 }}>
+      <Container maxWidth="lg" sx={{ py: 4, pt: 2 }}>
         {/* Base de données Section */}
         <Box sx={{ mb: 8 }}>
-          <Typography variant="h3" fontWeight={800} gutterBottom color="text.primary">
+          <Typography variant="h3" fontWeight={800} gutterBottom color="text.primary" sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <StorageIcon fontSize="large" />
             Base de données
           </Typography>
           <Box
@@ -187,7 +191,8 @@ export default function DashboardView() {
 
         {/* Outils Section */}
         <Box sx={{ mb: 8 }}>
-          <Typography variant="h3" fontWeight={800} gutterBottom color="text.primary">
+          <Typography variant="h3" fontWeight={800} gutterBottom color="text.primary" sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <BuildIcon fontSize="large" />
             Outils
           </Typography>
           <Box
@@ -219,7 +224,8 @@ export default function DashboardView() {
 
         {/* Administration Section */}
         <Box>
-          <Typography variant="h3" fontWeight={800} gutterBottom color="text.primary">
+          <Typography variant="h3" fontWeight={800} gutterBottom color="text.primary" sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <AdminPanelSettingsIcon fontSize="large" />
             Administration
           </Typography>
           <Box

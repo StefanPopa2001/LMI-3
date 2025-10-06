@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono, Montserrat } from "next/font/google";
 import ThemeRegistry from "../theme/ThemeRegistry";
 import { CssBaseline } from '@mui/material';
-import { ToastProvider } from "../components/ui/ToastContext";
-import { ToastContainer } from "../components/ui/ToastContainer";
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import AuthGuard from "../components/auth/AuthGuard";
 
 const geistSans = Geist({
@@ -37,12 +37,10 @@ export default function RootLayout({
       <body className={`${geistSans.variable} ${geistMono.variable} ${montserrat.variable}`}>
         <ThemeRegistry>
           <CssBaseline />
-          <ToastProvider>
-            <AuthGuard>
-              {children}
-            </AuthGuard>
-            <ToastContainer />
-          </ToastProvider>
+          <AuthGuard>
+            {children}
+          </AuthGuard>
+          <ToastContainer position="top-right" />
         </ThemeRegistry>
       </body>
     </html>
