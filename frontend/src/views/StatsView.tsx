@@ -23,8 +23,6 @@ import {
   BarChart,
 } from '@mui/icons-material';
 
-import ThemeRegistry from '../theme/ThemeRegistry';
-import NavBar from '../components/layout/NavBar';
 import authService from '../services/authService';
 import statsService, { LevelStats, TeacherStats } from '../services/statsService';
 
@@ -118,30 +116,22 @@ export default function StatsView() {
 
   if (!mounted) {
     return (
-      <ThemeRegistry>
-        <NavBar />
-        <Container maxWidth="lg" sx={{ py: { xs: 2, sm: 4 }, mt: 8, px: { xs: 2, sm: 3 } }}>
-          <Typography>Loading...</Typography>
-        </Container>
-      </ThemeRegistry>
+      <Container maxWidth="lg" sx={{ py: { xs: 2, sm: 4 }, mt: 8, px: { xs: 2, sm: 3 } }}>
+        <Typography>Loading...</Typography>
+      </Container>
     );
   }
 
   if (!isUserAuthenticated) {
     return (
-      <ThemeRegistry>
-        <NavBar />
-        <Container maxWidth="lg" sx={{ py: { xs: 2, sm: 4 }, mt: 8, px: { xs: 2, sm: 3 } }}>
-          <Alert severity="error">You need to be logged in to access statistics.</Alert>
-        </Container>
-      </ThemeRegistry>
+      <Container maxWidth="lg" sx={{ py: { xs: 2, sm: 4 }, mt: 8, px: { xs: 2, sm: 3 } }}>
+        <Alert severity="error">You need to be logged in to access statistics.</Alert>
+      </Container>
     );
   }
 
   return (
-    <ThemeRegistry>
-      <NavBar />
-      <Container
+    <Container
         maxWidth={false}
         sx={{
           py: { xs: 2, sm: 4 },
@@ -325,6 +315,5 @@ export default function StatsView() {
           </Box>
         </Paper>
       </Container>
-    </ThemeRegistry>
   );
 }

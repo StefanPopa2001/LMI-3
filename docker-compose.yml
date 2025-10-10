@@ -10,18 +10,24 @@ services:
     ports:
       - "5433:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - /home/starco/volumes/lmi3/postgres:/var/lib/postgresql/data
     restart: always
+    networks:
+      - starcozka-app-network
 
   redis_lmi3:
     image: redis:7-alpine
     ports:
       - "6379:6379"
+    volumes:
+      - /home/starco/volumes/lmi3/redis:/data
     restart: always
+    networks:
+      - starcozka-app-network
 
   backend_lmi3:
     build: ./backend
-    restart: always
+    restart: unless-stopped
     depends_on:
       - db_postgres_lmi3
       - redis_lmi3
@@ -36,9 +42,10 @@ services:
       DRIVE_BUCKET: ${DRIVE_BUCKET}
       DEBUG_NO_VALIDATION: ${DEBUG_NO_VALIDATION}
       DEFAULT_PASSWORD: ${DEFAULT_PASSWORD}
-    volumes:
-      - ./backend:/app
-      - /app/node_modules
+    # volumes:
+    #   - ./backend:/app
+    networks:
+      - starcozka-app-network
     healthcheck:
       test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:4000/health"]
       interval: 30s
@@ -47,17 +54,17 @@ services:
       start_period: 40s
     labels:
       - "traefik.enable=true"
-      # API routes with /LMI3/API prefix for domain (HTTPS)
-      - "traefik.http.routers.backend-lmi3-api-secure.rule=Host(`popa-stefan.be`) && PathPrefix(`/LMI3/API`)"
+      # API routes with /lmi3/api prefix for domain (HTTPS)
+      - "traefik.http.routers.backend-lmi3-api-secure.rule=Host(`popa-stefan.be`) && PathPrefix(`/lmi3/api`)"
       - "traefik.http.routers.backend-lmi3-api-secure.entrypoints=websecure"
       - "traefik.http.routers.backend-lmi3-api-secure.tls.certresolver=myresolver"
       - "traefik.http.routers.backend-lmi3-api-secure.service=backend-lmi3"
       - "traefik.http.routers.backend-lmi3-api-secure.middlewares=api-stripprefix,cors"
-      - "traefik.http.routers.backend-lmi3-api-secure.priority=10"
+      - "traefik.http.routers.backend-lmi3-api-secure.priority=15"
       # Service configuration
       - "traefik.http.services.backend-lmi3.loadbalancer.server.port=4000"
       # Fix stripprefix middleware
-      - "traefik.http.middlewares.api-stripprefix.stripprefix.prefixes=/LMI3/API"
+      - "traefik.http.middlewares.api-stripprefix.stripprefix.prefixes=/lmi3/api"
       # Enhanced CORS headers
       - "traefik.http.middlewares.cors.headers.accesscontrolallowmethods=GET,OPTIONS,PUT,POST,DELETE,PATCH"
       - "traefik.http.middlewares.cors.headers.accesscontrolallowheaders=*"
@@ -67,27 +74,31 @@ services:
       - "traefik.http.middlewares.cors.headers.addvaryheader=true"
       - "traefik.http.middlewares.cors.headers.accesscontrolexposeheaders=*"
 
-  frontend:
+  frontend_lmi3:
     build: ./frontend
-    restart: always
+    restart: unless-stopped
     env_file: .env
     environment:
       NODE_ENV: production
-      NEXT_PUBLIC_API_URL: https://popa-stefan.be/LMI3/API
+      NEXT_PUBLIC_API_URL: https://popa-stefan.be/lmi3/api
+      NEXT_PUBLIC_BUILD_ID: ${BUILD_ID:-production}
+    networks:
+      - starcozka-app-network
     # Do not mount the host source into /app in production -- it hides the built standalone
     # volumes:
     #  - ./frontend:/app:ro
     labels:
       - "traefik.enable=true"
-      # Serve the frontend under /LMI3/Webapp
-      - "traefik.http.routers.frontend-web.rule=Host(`popa-stefan.be`) && PathPrefix(`/LMI3/Webapp`)"
-      - "traefik.http.routers.frontend-web.entrypoints=websecure"
-      - "traefik.http.routers.frontend-web.tls.certresolver=myresolver"
-      - "traefik.http.routers.frontend-web.service=frontend-service"
-      - "traefik.http.routers.frontend-web.priority=5"
-      - "traefik.http.services.frontend-service.loadbalancer.server.port=3000"
+      # Serve the frontend under /lmi3
+      - "traefik.http.routers.frontend-lmi3-web.rule=Host(`popa-stefan.be`) && PathPrefix(`/lmi3`) && !PathPrefix(`/lmi3/api`)"
+      - "traefik.http.routers.frontend-lmi3-web.entrypoints=websecure"
+      - "traefik.http.routers.frontend-lmi3-web.tls.certresolver=myresolver"
+      - "traefik.http.routers.frontend-lmi3-web.service=frontend-lmi3-service"
+      - "traefik.http.routers.frontend-lmi3-web.priority=10"
+      - "traefik.http.services.frontend-lmi3-service.loadbalancer.server.port=3000"
       # Do not strip the prefix, let Next.js handle the basePath
-      # - "traefik.http.middlewares.web-stripprefix.stripprefix.prefixes=/LMI3/Webapp"
+      # - "traefik.http.middlewares.web-stripprefix.stripprefix.prefixes=/lmi3"
 
-volumes:
-  postgres_data:
+networks:
+  starcozka-app-network:
+    external: true

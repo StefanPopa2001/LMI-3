@@ -43,8 +43,8 @@ frontend/logs/
 frontend/next-env.d.ts
 
 # Env files (uncomment to ignore all env)
-# .env
-# *.env
+.env
+*.env
 
 # Local services data
 docker-data/

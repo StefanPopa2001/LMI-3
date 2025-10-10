@@ -1,525 +1,382 @@
 "use client";
-import React, { useEffect, useState, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+
+import * as React from 'react';
 import {
-  Box,
-  Typography,
-  Button,
-  Container,
-  Paper,
-  TextField,
-  Alert,
-  Checkbox,
-  IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  CircularProgress,
-  Tooltip,
-} from '@mui/material';
-import { DataGrid, GridColDef, GridToolbar, GridRenderCellParams } from '@mui/x-data-grid';
-import { Edit, Refresh, Upload, Delete, CloudUpload, Save } from '@mui/icons-material';
-
-import ThemeRegistry from '../theme/ThemeRegistry';
-import NavBar from '../components/layout/NavBar';
-import authService from '../services/authService';
+  DataGrid,
+  GridRowsProp,
+  GridColDef,
+  GridRowId,
+} from '@mui/x-data-grid';
+import { Box, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Select, MenuItem, FormControl, InputLabel, Container, Paper, Typography, Chip, FormControlLabel, Switch, IconButton, List, ListItem, ListItemText, ListItemSecondaryAction, ListItemButton, Card, CardContent, useMediaQuery, InputAdornment } from '@mui/material';
+import { Add, Refresh, Delete as DeleteIcon, ViewColumn as ViewColumnIcon, ArrowUpward, ArrowDownward, Visibility, VisibilityOff, Save, Search, TableChart, GridView } from '@mui/icons-material';
 import eleveService, { Eleve, CreateEleveData } from '../services/eleveService';
-import SimpleHotGrid from '../components/grid/SimpleHotGrid';
-import { toast } from 'react-toastify';
-
-interface BulkEleveData {
-  nom: string;
-  prenom: string;
-  dateNaissance: string;
-  idLogiscool?: string;
-  mdpLogiscool?: string;
-  contingent?: string;
-  nomCompletParent?: string;
-  nomCompletResponsable1?: string;
-  relationResponsable1?: string;
-  gsmResponsable1?: string;
-  mailResponsable1?: string;
-  nomCompletResponsable2?: string;
-  relationResponsable2?: string;
-  gsmResponsable2?: string;
-  mailResponsable2?: string;
-  nomCompletResponsable3?: string;
-  relationResponsable3?: string;
-  gsmResponsable3?: string;
-  mailResponsable3?: string;
-  retourSeul?: boolean;
-  recuperePar?: string;
-  periodeInscription?: string;
-  nombreVersements?: number;
-  boursier?: boolean;
-  cpas?: boolean;
-  membreClubCIB?: boolean;
-  nomPartenaire?: string;
-  montantBrutQ1?: number;
-  reduction?: number;
-  bourses2024Q1?: number;
-  montantDu?: number;
-  montantFinal?: number;
-  montantPaye?: number;
-  datePayment?: string;
-  periodePayment?: string;
-  montantBrutQ2?: number;
-  reductionQ2?: number;
-  boursesQ2?: number;
-  montantFinalQ2?: number;
-  montantPayeQ2?: number;
-  datePaymentQ2?: string;
-  periodePaymentQ2?: string;
-  abandon?: boolean;
-  dateAbandon?: string;
-  remarques?: string;
-  nomResponsableFiscal?: string;
-  prenomResponsableFiscal?: string;
-  numRegNatResponsableFiscal?: string;
-  numRegNationalEleve?: string;
-  dateNaissanceResponsableFiscal?: string;
-  adresseResponsableFiscal?: string;
-  codePostalResponsableFiscal?: string;
-  localiteResponsableFiscal?: string;
-  paysResponsableFiscal?: string;
-  adresseEleve?: string;
-  codePostalEleve?: string;
-  localiteEleve?: string;
-  paysEleve?: string;
-  rrRestantes?: number;
-}
-
-type ColumnMeta = {
-  field: keyof Eleve | keyof BulkEleveData | 'actions';
-  header: string;
-  type: 'text' | 'number' | 'date' | 'checkbox' | 'readonly' | 'actions';
-  width?: number;
-};
+import { useRouter } from 'next/navigation';
 
 export default function ElevesView() {
-  const [eleves, setEleves] = useState<Eleve[]>([]);
-  const [draftEleves, setDraftEleves] = useState<Eleve[]>([]);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [mounted, setMounted] = useState(false);
-  const [isEditable, setIsEditable] = useState(false);
-  const [pendingChanges, setPendingChanges] = useState<Record<number, Partial<Eleve>>>({});
+  const [rows, setRows] = React.useState<Eleve[]>([]);
+  const [selectionModel, setSelectionModel] = React.useState<GridRowId[]>([]);
+  const [loading, setLoading] = React.useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = React.useState(false);
+  const [newEleve, setNewEleve] = React.useState<Partial<Eleve & { password: string }>>({
+    nom: '',
+    prenom: '',
+    dateNaissance: '',
+  });
+  const [slotsDialogOpen, setSlotsDialogOpen] = React.useState(false);
+  const STORAGE_KEY = 'eleves_columns_v1';
 
-  // Import dialog state
-  const [importDialog, setImportDialog] = useState(false);
-  const [importData, setImportData] = useState<BulkEleveData[]>([]);
-  const [validationErrors, setValidationErrors] = useState<string[]>([]);
-  const [isImporting, setIsImporting] = useState(false);
+  // default column order (must match columns later)
+  const defaultColumnOrder = ['id','nom','prenom','dateNaissance','idLogiscool','mdpLogiscool','contingent','nomCompletParent','nomCompletResponsable1','relationResponsable1','gsmResponsable1','mailResponsable1','nomCompletResponsable2','relationResponsable2','gsmResponsable2','mailResponsable2','nomCompletResponsable3','relationResponsable3','gsmResponsable3','mailResponsable3','retourSeul','recuperePar','periodeInscription','nombreVersements','boursier','cpas','membreClubCIB','nomPartenaire','montantBrutQ1','reduction','bourses2024Q1','montantDu','montantFinal','montantPaye','datePayment','periodePayment','montantBrutQ2','reductionQ2','boursesQ2','montantFinalQ2','montantPayeQ2','datePaymentQ2','periodePaymentQ2','abandon','dateAbandon','remarques','nomResponsableFiscal','prenomResponsableFiscal','numRegNatResponsableFiscal','dateNaissanceResponsableFiscal','adresseResponsableFiscal','codePostalResponsableFiscal','localiteResponsableFiscal','paysResponsableFiscal','numRegNationalEleve','adresseEleve','codePostalEleve','localiteEleve','paysEleve','rrRestantes'];
 
-  // Table state
-  const [orderBy, setOrderBy] = useState<string>('nom');
-  const [order, setOrder] = useState<'asc' | 'desc'>('asc');
-  const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+  // column order and visibility state
+  const [columnOrder, setColumnOrder] = React.useState<string[]>(() => defaultColumnOrder);
+  const [columnVisibility, setColumnVisibility] = React.useState<Record<string, boolean>>(() => Object.fromEntries(defaultColumnOrder.map(f => [f, true])));
+
+  const [slots, setSlots] = React.useState<Record<string, { order: string[]; visibility: Record<string, boolean> }>>(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY + ':slots');
+      return raw ? JSON.parse(raw) : {};
+    } catch (e) {
+      return {};
+    }
+  });
+  const [selectedSlot, setSelectedSlot] = React.useState<string | null>(null);
+  const [slotName, setSlotName] = React.useState('');
+  // editor state for modifying a slot inside the modal
+  const [editingSlot, setEditingSlot] = React.useState<string | null>(null);
+  const [editingOrder, setEditingOrder] = React.useState<string[]>([]);
+  const [editingVisibility, setEditingVisibility] = React.useState<Record<string, boolean>>({});
+  const [renameInput, setRenameInput] = React.useState('');
+
+  const [currentTab, setCurrentTab] = React.useState(0);
+  const [searchQuery, setSearchQuery] = React.useState('');
+
+  const isMobile = useMediaQuery('(max-width:600px)');
 
   const router = useRouter();
 
-  const handleApiError = (err: any) => {
-    if (err.message && err.message.startsWith('AUTH_ERROR:')) {
-      router.push('/login');
-      return;
+  // load saved preferences
+  React.useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed.order)) setColumnOrder(parsed.order);
+        if (parsed.visibility && typeof parsed.visibility === 'object') setColumnVisibility(parsed.visibility);
+      }
+    } catch (e) {
+      // ignore
     }
-    toast.error(err.message);
-  };
-
-  const isUserAuthenticated = useMemo(() => {
-    if (!mounted) return false;
-    return authService.isAuthenticated();
-  }, [mounted]);
-
-  useEffect(() => {
-    setMounted(true);
   }, []);
 
-  useEffect(() => {
-    if (mounted && isUserAuthenticated) {
-      fetchEleves();
-    }
-  }, [mounted, isUserAuthenticated]);
+  // set default tab based on device
+  React.useEffect(() => {
+    setCurrentTab(isMobile ? 1 : 0);
+  }, [isMobile]);
+
+  // fetch eleves on mount
+  React.useEffect(() => {
+    fetchEleves();
+  }, []);
 
   const fetchEleves = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      const fetched = await eleveService.getAllEleves();
-      setEleves(fetched);
-    } catch (err: any) {
-      handleApiError(err);
+      const eleves = await eleveService.getAllEleves();
+      setRows(eleves);
+    } catch (error) {
+      console.error('Failed to fetch eleves:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  // Columns metadata
-  const columns: ColumnMeta[] = useMemo(() => {
-    const cols: ColumnMeta[] = [
-      { field: 'id', header: 'ID', type: 'readonly', width: 80 },
-      { field: 'nom', header: 'Nom', type: 'text', width: 160 },
-      { field: 'prenom', header: 'Prénom', type: 'text', width: 160 },
-      { field: 'dateNaissance', header: 'Date Naissance', type: 'date', width: 160 },
-      { field: 'idLogiscool', header: 'ID Logiscool', type: 'text', width: 140 },
-      { field: 'mdpLogiscool', header: 'MDP Logiscool', type: 'text', width: 140 },
-      { field: 'contingent', header: 'Contingent', type: 'text', width: 140 },
-      { field: 'nomCompletParent', header: 'Parent', type: 'text', width: 200 },
-      { field: 'nomCompletResponsable1', header: 'Resp1 Nom', type: 'text', width: 180 },
-      { field: 'relationResponsable1', header: 'Resp1 Relation', type: 'text', width: 160 },
-      { field: 'gsmResponsable1', header: 'Resp1 GSM', type: 'text', width: 140 },
-      { field: 'mailResponsable1', header: 'Resp1 Email', type: 'text', width: 200 },
-      { field: 'nomCompletResponsable2', header: 'Resp2 Nom', type: 'text', width: 180 },
-      { field: 'relationResponsable2', header: 'Resp2 Relation', type: 'text', width: 160 },
-      { field: 'gsmResponsable2', header: 'Resp2 GSM', type: 'text', width: 140 },
-      { field: 'mailResponsable2', header: 'Resp2 Email', type: 'text', width: 200 },
-      { field: 'nomCompletResponsable3', header: 'Resp3 Nom', type: 'text', width: 180 },
-      { field: 'relationResponsable3', header: 'Resp3 Relation', type: 'text', width: 160 },
-      { field: 'gsmResponsable3', header: 'Resp3 GSM', type: 'text', width: 140 },
-      { field: 'mailResponsable3', header: 'Resp3 Email', type: 'text', width: 200 },
-      { field: 'retourSeul', header: 'Retour Seul', type: 'checkbox', width: 130 },
-      { field: 'recuperePar', header: 'Récupéré Par', type: 'text', width: 160 },
-      { field: 'periodeInscription', header: 'Période Inscription', type: 'text', width: 160 },
-      { field: 'nombreVersements', header: 'Nombre Versements', type: 'number', width: 180 },
-      { field: 'boursier', header: 'Boursier', type: 'checkbox', width: 120 },
-      { field: 'cpas', header: 'CPAS', type: 'checkbox', width: 100 },
-      { field: 'membreClubCIB', header: 'Club CIB', type: 'checkbox', width: 120 },
-      { field: 'nomPartenaire', header: 'Partenaire', type: 'text', width: 160 },
-      { field: 'montantBrutQ1', header: 'Montant Brut Q1', type: 'number', width: 160 },
-      { field: 'reduction', header: 'Réduction Q1', type: 'number', width: 140 },
-      { field: 'bourses2024Q1', header: 'Bourses 2024 Q1', type: 'number', width: 160 },
-      { field: 'montantDu', header: 'Montant Dû Q1', type: 'number', width: 150 },
-      { field: 'montantFinal', header: 'Montant Final Q1', type: 'number', width: 170 },
-      { field: 'montantPaye', header: 'Montant Payé Q1', type: 'number', width: 170 },
-      { field: 'datePayment', header: 'Date Paiement Q1', type: 'date', width: 160 },
-      { field: 'periodePayment', header: 'Période Paiement Q1', type: 'text', width: 170 },
-      { field: 'montantBrutQ2', header: 'Montant Brut Q2', type: 'number', width: 160 },
-      { field: 'reductionQ2', header: 'Réduction Q2', type: 'number', width: 140 },
-      { field: 'boursesQ2', header: 'Bourses Q2', type: 'number', width: 140 },
-      { field: 'montantFinalQ2', header: 'Montant Final Q2', type: 'number', width: 160 },
-      { field: 'montantPayeQ2', header: 'Montant Payé Q2', type: 'number', width: 160 },
-      { field: 'datePaymentQ2', header: 'Date Paiement Q2', type: 'date', width: 160 },
-      { field: 'periodePaymentQ2', header: 'Période Paiement Q2', type: 'text', width: 170 },
-      { field: 'abandon', header: 'Abandon', type: 'checkbox', width: 110 },
-      { field: 'dateAbandon', header: 'Date Abandon', type: 'date', width: 160 },
-      { field: 'remarques', header: 'Remarques', type: 'text', width: 240 },
-      { field: 'nomResponsableFiscal', header: 'Resp Fiscal Nom', type: 'text', width: 180 },
-      { field: 'prenomResponsableFiscal', header: 'Resp Fiscal Prénom', type: 'text', width: 180 },
-      { field: 'numRegNatResponsableFiscal', header: 'Resp Fiscal Reg Nat', type: 'text', width: 200 },
-      { field: 'dateNaissanceResponsableFiscal', header: 'Resp Fiscal Naissance', type: 'date', width: 200 },
-      { field: 'adresseResponsableFiscal', header: 'Resp Fiscal Adresse', type: 'text', width: 240 },
-      { field: 'codePostalResponsableFiscal', header: 'Resp Fiscal CP', type: 'text', width: 140 },
-      { field: 'localiteResponsableFiscal', header: 'Resp Fiscal Localité', type: 'text', width: 180 },
-      { field: 'paysResponsableFiscal', header: 'Resp Fiscal Pays', type: 'text', width: 150 },
-      { field: 'numRegNationalEleve', header: 'Élève Reg Nat', type: 'text', width: 160 },
-      { field: 'adresseEleve', header: 'Élève Adresse', type: 'text', width: 220 },
-      { field: 'codePostalEleve', header: 'Élève CP', type: 'text', width: 120 },
-      { field: 'localiteEleve', header: "Élève Localité", type: 'text', width: 160 },
-      { field: 'paysEleve', header: 'Élève Pays', type: 'text', width: 140 },
-      { field: 'rrRestantes', header: 'RR Restantes', type: 'number', width: 140 },
-      { field: 'actions', header: 'Actions', type: 'actions', width: 120 },
-    ];
-    return cols;
-  }, []);
-
-  const dateFields = new Set<string>([
-    'dateNaissance','datePayment','datePaymentQ2','dateAbandon','dateNaissanceResponsableFiscal'
-  ]);
-  const numberFields = new Set<string>([
-    'nombreVersements','montantBrutQ1','reduction','bourses2024Q1','montantDu','montantFinal','montantPaye','montantBrutQ2','reductionQ2','boursesQ2','montantFinalQ2','montantPayeQ2','rrRestantes'
-  ]);
-  const booleanFields = new Set<string>(['retourSeul','boursier','cpas','membreClubCIB','abandon']);
-
-  // keep draft in sync with server data
-  useEffect(() => {
-    setDraftEleves(eleves.map(e => ({ ...e })));
-  }, [eleves]);
-
-  // Data shown in table (render draft when editing)
-  const rowsBase = useMemo(() => (isEditable ? draftEleves : eleves), [isEditable, draftEleves, eleves]);
-
-  const sortedData = useMemo(() => {
-    const arr = [...rowsBase];
-    arr.sort((a: any, b: any) => {
-      const av = (a as any)[orderBy];
-      const bv = (b as any)[orderBy];
-      if (av == null && bv == null) return 0;
-      if (av == null) return order === 'asc' ? -1 : 1;
-      if (bv == null) return order === 'asc' ? 1 : -1;
-      if (dateFields.has(orderBy)) {
-        const ad = av ? new Date(av).getTime() : 0;
-        const bd = bv ? new Date(bv).getTime() : 0;
-        return order === 'asc' ? ad - bd : bd - ad;
-      }
-      if (numberFields.has(orderBy)) {
-        const an = parseFloat(av) || 0;
-        const bn = parseFloat(bv) || 0;
-        return order === 'asc' ? an - bn : bn - an;
-      }
-      const as = String(av).toLowerCase();
-      const bs = String(bv).toLowerCase();
-      if (as < bs) return order === 'asc' ? -1 : 1;
-      if (as > bs) return order === 'asc' ? 1 : -1;
-      return 0;
-    });
-    return arr;
-  }, [rowsBase, orderBy, order]);
-
-  const paginatedData = useMemo(() => {
-    const start = page * rowsPerPage;
-    return sortedData.slice(start, start + rowsPerPage);
-  }, [sortedData, page, rowsPerPage]);
-
-  const handleRequestSort = (property: string) => {
-    const isAsc = orderBy === property && order === 'asc';
-    setOrder(isAsc ? 'desc' : 'asc');
-    setOrderBy(property);
-  };
-
-  const handleChangePage = (_: unknown, newPage: number) => setPage(newPage);
-  const handleChangeRowsPerPage = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setRowsPerPage(parseInt(e.target.value, 10));
-    setPage(0);
-  };
-
-  const toISODate = (val: string) => {
-    if (!val) return undefined;
-    if (val.includes('T')) {
-      const d = new Date(val);
-      return isNaN(d.getTime()) ? undefined : d.toISOString();
-    }
-    const d = new Date(val + 'T00:00:00');
-    return isNaN(d.getTime()) ? undefined : d.toISOString();
-  };
-
-  // Local change buffering
-  const handleCellChange = (id: number, field: string, value: any) => {
-    setDraftEleves(prev => prev.map(r => (r.id === id ? { ...r, [field]: value } as any : r)));
-    setPendingChanges(prev => ({ ...prev, [id]: { ...(prev[id] || {}), [field]: value } }));
-  };
-
-  const handleSaveAll = async () => {
-    const ids = Object.keys(pendingChanges).map(Number);
-    if (!ids.length) return;
+  const handleBulkDelete = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      for (const id of ids) {
-        const patch = pendingChanges[id] as Record<string, any>;
-        const payload: Record<string, any> = {};
-        for (const [field, val] of Object.entries(patch)) {
-          if (booleanFields.has(field)) payload[field] = Boolean(val);
-          else if (numberFields.has(field)) payload[field] = val === '' || val == null ? null : Number(val);
-          else if (dateFields.has(field)) payload[field] = val ? toISODate(String(val)) : null;
-          else payload[field] = val;
-        }
-        await eleveService.updateEleve(id, payload as any);
+      for (const id of selectionModel) {
+        await eleveService.deleteEleve(id as number);
       }
-      toast.success(`Élèves mis à jour (${ids.length})`);
-      setPendingChanges({});
       await fetchEleves();
-    } catch (err: any) {
-      handleApiError(err);
+    } catch (error) {
+      console.error('Failed to delete eleves:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleTableDelete = async (row: Eleve) => {
-    if (!row.id) return;
-    if (window.confirm(`Supprimer ${row.prenom} ${row.nom} ?`)) {
-      try {
-        setLoading(true);
-        await eleveService.deleteEleve(row.id);
-        toast.success('Élève supprimé');
-        await fetchEleves();
-      } catch (err: any) {
-        handleApiError(err);
-      } finally {
-        setLoading(false);
-      }
+  const processRowUpdate = async (updatedRow: Eleve) => {
+    try {
+      const payload: any = { ...updatedRow };
+      await eleveService.updateEleve(updatedRow.id, payload);
+      return updatedRow;
+    } catch (error) {
+      console.error('Failed to update eleve:', error);
+      throw error;
     }
   };
 
-  // ===== Import helpers =====
-  const parseDateFlexible = (input?: string | null): string | null => {
-    if (!input) return null;
-    const s = String(input).trim();
-    if (!s) return null;
-    const ddmmyyyy = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-    if (ddmmyyyy) {
-      const d = parseInt(ddmmyyyy[1], 10);
-      const m = parseInt(ddmmyyyy[2], 10) - 1;
-      const y = parseInt(ddmmyyyy[3], 10);
-      const dt = new Date(Date.UTC(y, m, d));
-      return isNaN(dt.getTime()) ? null : dt.toISOString().slice(0, 10);
-    }
-    const yyyymmdd = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
-    if (yyyymmdd) {
-      const y = parseInt(yyyymmdd[1], 10);
-      const m = parseInt(yyyymmdd[2], 10) - 1;
-      const d = parseInt(yyyymmdd[3], 10);
-      const dt = new Date(Date.UTC(y, m, d));
-      return isNaN(dt.getTime()) ? null : dt.toISOString().slice(0, 10);
-    }
-    const dt = new Date(s);
-    return isNaN(dt.getTime()) ? null : dt.toISOString().slice(0, 10);
-  };
-
-  const initializeImportGrid = () => {
-    const empty = Array.from({ length: 20 }, () => ({
-      nom: '', prenom: '', dateNaissance: '', idLogiscool: '', mdpLogiscool: '', contingent: '', nomCompletParent: '',
-      nomCompletResponsable1: '', relationResponsable1: '', gsmResponsable1: '', mailResponsable1: '',
-      nomCompletResponsable2: '', relationResponsable2: '', gsmResponsable2: '', mailResponsable2: '',
-      nomCompletResponsable3: '', relationResponsable3: '', gsmResponsable3: '', mailResponsable3: '',
-      retourSeul: false, recuperePar: '', periodeInscription: '', nombreVersements: 0, boursier: false, cpas: false, membreClubCIB: false,
-      nomPartenaire: '', montantBrutQ1: 0, reduction: 0, bourses2024Q1: 0, montantDu: 0, montantFinal: 0, montantPaye: 0, datePayment: '', periodePayment: '',
-      montantBrutQ2: 0, reductionQ2: 0, boursesQ2: 0, montantFinalQ2: 0, montantPayeQ2: 0, datePaymentQ2: '', periodePaymentQ2: '',
-      abandon: false, dateAbandon: '', remarques: '', nomResponsableFiscal: '', prenomResponsableFiscal: '', numRegNatResponsableFiscal: '', numRegNationalEleve: '', dateNaissanceResponsableFiscal: '',
-      adresseResponsableFiscal: '', codePostalResponsableFiscal: '', localiteResponsableFiscal: '', paysResponsableFiscal: '', adresseEleve: '', codePostalEleve: '', localiteEleve: '', paysEleve: '', rrRestantes: 0
-    } as BulkEleveData));
-    setImportData(empty);
-  };
-
-  useEffect(() => { if (importDialog) initializeImportGrid(); }, [importDialog]);
-
-  const validateImportData = (data: BulkEleveData[]): string[] => {
-    const errors: string[] = [];
-    data.forEach((row, idx) => {
-      const n = idx + 1;
-      if (!row.nom?.trim()) errors.push(`Row ${n}: Nom is required`);
-      if (!row.prenom?.trim()) errors.push(`Row ${n}: Prénom is required`);
-      if (!row.dateNaissance?.trim()) errors.push(`Row ${n}: Date Naissance is required`);
-      if (row.dateNaissance) {
-        const iso = parseDateFlexible(row.dateNaissance);
-        if (!iso) errors.push(`Row ${n}: Invalid Date Naissance`);
-      }
-      const mails = [row.mailResponsable1, row.mailResponsable2, row.mailResponsable3].filter(Boolean) as string[];
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      mails.forEach((m, mi) => { if (!emailRegex.test(m)) errors.push(`Row ${n}: Invalid email R${mi+1}`); });
-      const phones = [row.gsmResponsable1, row.gsmResponsable2, row.gsmResponsable3].filter(Boolean) as string[];
-      phones.forEach((p) => { if (!/^\+?[0-9\s\-()]+$/.test(p)) errors.push(`Row ${n}: Invalid phone`); });
-    });
-    return errors;
-  };
-
-  const handleBulkImport = async () => {
-    const dataToImport = importData.filter(r => r.nom?.trim() || r.prenom?.trim() || r.dateNaissance?.trim());
-    if (dataToImport.length === 0) { toast.error('No data to import'); return; }
-    const errors = validateImportData(dataToImport);
-    if (errors.length) { setValidationErrors(errors); return; }
-    setIsImporting(true); setValidationErrors([]);
-    let ok = 0, fail = 0; const details: string[] = [];
-    for (const [i, row] of dataToImport.entries()) {
-      try {
-        const toNum = (v: any) => v === '' || v === undefined || v === null ? undefined : Number(v);
-        const toBool = (v: any) => v === true || v === 'true' || v === 1;
-        const d = (v?: string) => v ? parseDateFlexible(v) : null;
-        const payload: CreateEleveData = {
-          nom: row.nom.trim(),
-          prenom: row.prenom.trim(),
-          dateNaissance: d(row.dateNaissance)!,
-          idLogiscool: row.idLogiscool || undefined,
-          mdpLogiscool: row.mdpLogiscool || undefined,
-          contingent: row.contingent || undefined,
-          nomCompletParent: row.nomCompletParent || undefined,
-          nomCompletResponsable1: row.nomCompletResponsable1 || undefined,
-          relationResponsable1: row.relationResponsable1 || undefined,
-          gsmResponsable1: row.gsmResponsable1 || undefined,
-          mailResponsable1: row.mailResponsable1 || undefined,
-          nomCompletResponsable2: row.nomCompletResponsable2 || undefined,
-          relationResponsable2: row.relationResponsable2 || undefined,
-          gsmResponsable2: row.gsmResponsable2 || undefined,
-          mailResponsable2: row.mailResponsable2 || undefined,
-          nomCompletResponsable3: row.nomCompletResponsable3 || undefined,
-          relationResponsable3: row.relationResponsable3 || undefined,
-          gsmResponsable3: row.gsmResponsable3 || undefined,
-          mailResponsable3: row.mailResponsable3 || undefined,
-          retourSeul: toBool(row.retourSeul),
-          recuperePar: row.recuperePar || undefined,
-          periodeInscription: row.periodeInscription || undefined,
-          nombreVersements: toNum(row.nombreVersements),
-          boursier: toBool(row.boursier),
-          cpas: toBool(row.cpas),
-          membreClubCIB: toBool(row.membreClubCIB),
-          nomPartenaire: row.nomPartenaire || undefined,
-          montantBrutQ1: toNum(row.montantBrutQ1),
-          reduction: toNum(row.reduction),
-          bourses2024Q1: toNum(row.bourses2024Q1),
-          montantDu: toNum(row.montantDu),
-          montantFinal: toNum(row.montantFinal),
-          montantPaye: toNum(row.montantPaye),
-          datePayment: d(row.datePayment) || undefined,
-          periodePayment: row.periodePayment || undefined,
-          montantBrutQ2: toNum(row.montantBrutQ2),
-          reductionQ2: toNum(row.reductionQ2),
-          boursesQ2: toNum(row.boursesQ2),
-          montantFinalQ2: toNum(row.montantFinalQ2),
-          montantPayeQ2: toNum(row.montantPayeQ2),
-          datePaymentQ2: d(row.datePaymentQ2) || undefined,
-          periodePaymentQ2: row.periodePaymentQ2 || undefined,
-          abandon: toBool(row.abandon),
-          dateAbandon: d(row.dateAbandon) || undefined,
-          remarques: row.remarques || undefined,
-          nomResponsableFiscal: row.nomResponsableFiscal || undefined,
-          prenomResponsableFiscal: row.prenomResponsableFiscal || undefined,
-          numRegNatResponsableFiscal: row.numRegNatResponsableFiscal || undefined,
-          numRegNationalEleve: row.numRegNationalEleve || undefined,
-          dateNaissanceResponsableFiscal: d(row.dateNaissanceResponsableFiscal) || undefined,
-          adresseResponsableFiscal: row.adresseResponsableFiscal || undefined,
-          codePostalResponsableFiscal: row.codePostalResponsableFiscal || undefined,
-          localiteResponsableFiscal: row.localiteResponsableFiscal || undefined,
-          paysResponsableFiscal: row.paysResponsableFiscal || undefined,
-          adresseEleve: row.adresseEleve || undefined,
-          codePostalEleve: row.codePostalEleve || undefined,
-          localiteEleve: row.localiteEleve || undefined,
-          paysEleve: row.paysEleve || undefined,
-          rrRestantes: toNum(row.rrRestantes),
-        };
-        await eleveService.createEleve(payload);
-        ok++;
-      } catch (err: any) {
-        fail++;
-        details.push(`Row ${i + 1} (${row.nom} ${row.prenom}): ${err.message}`);
-      }
-    }
-    setIsImporting(false);
-    if (ok) {
-      toast.success(`Successfully imported ${ok} élève(s)${fail ? ` (${fail} failed)` : ''}`);
+  const handleCreateEleve = async () => {
+    try {
+      await eleveService.createEleve(newEleve as any);
+      setCreateDialogOpen(false);
+      setNewEleve({ nom: '', prenom: '', dateNaissance: '' });
       await fetchEleves();
-      if (!fail) { setImportDialog(false); setImportData([]); }
+    } catch (error) {
+      console.error('Failed to create eleve:', error);
     }
-    if (fail) toast.error(`Failed to import ${fail} rows:\n${details.join('\n')}`);
   };
 
-  const handleOpenImport = () => { initializeImportGrid(); setImportDialog(true); setValidationErrors([]); };
-  const handleCloseImport = () => { setImportDialog(false); setImportData([]); setValidationErrors([]); };
+  const saveColumnPrefs = (order: string[], visibility: Record<string, boolean>) => {
+    setColumnOrder(order);
+    setColumnVisibility(visibility);
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ order, visibility }));
+    } catch (e) {
+      // ignore
+    }
+  };
 
-  if (!mounted) {
-    return (
-      <ThemeRegistry>
-        <NavBar />
-        <Container maxWidth="lg" sx={{ py: { xs: 2, sm: 4 }, mt: 8, px: { xs: 2, sm: 3 } }}>
-          <Typography>Loading...</Typography>
-        </Container>
-      </ThemeRegistry>
-    );
-  }
+  const moveColumn = (field: string, dir: 'up' | 'down') => {
+    setColumnOrder(prev => {
+      const idx = prev.indexOf(field);
+      if (idx === -1) return prev;
+      const swap = dir === 'up' ? idx - 1 : idx + 1;
+      if (swap < 0 || swap >= prev.length) return prev;
+      const next = [...prev];
+      const tmp = next[swap];
+      next[swap] = next[idx];
+      next[idx] = tmp;
+      return next;
+    });
+  };
 
-  if (!isUserAuthenticated) {
-    return (
-      <ThemeRegistry>
-        <NavBar />
-        <Container maxWidth="lg" sx={{ py: { xs: 2, sm: 4 }, mt: 8, px: { xs: 2, sm: 3 } }}>
-          <Alert severity="error">You need to be logged in to access student management.</Alert>
-        </Container>
-      </ThemeRegistry>
-    );
-  }
+  const toggleVisibility = (field: string) => {
+    setColumnVisibility(prev => ({ ...prev, [field]: !prev[field] }));
+  };
+
+  const saveSlot = (name: string) => {
+    if (!name) return;
+    const next = { ...slots, [name]: { order: columnOrder, visibility: columnVisibility } };
+    setSlots(next);
+    try { localStorage.setItem(STORAGE_KEY + ':slots', JSON.stringify(next)); } catch (e) {}
+    setSelectedSlot(name);
+  };
+  const loadSlot = (name: string) => {
+    const s = slots[name];
+    if (!s) return;
+    setColumnOrder(s.order);
+    setColumnVisibility(s.visibility);
+    setSelectedSlot(name);
+  };
+  const deleteSlot = (name: string) => {
+    const next = { ...slots };
+    delete next[name];
+    setSlots(next);
+    try { localStorage.setItem(STORAGE_KEY + ':slots', JSON.stringify(next)); } catch (e) {}
+    if (selectedSlot === name) setSelectedSlot(null);
+    if (editingSlot === name) {
+      setEditingSlot(null);
+      setEditingOrder([]);
+      setEditingVisibility({});
+      setRenameInput('');
+    }
+  };
+
+  const startEditingSlot = (name: string) => {
+    const s = slots[name];
+    if (!s) return;
+    setEditingSlot(name);
+    setEditingOrder([...s.order]);
+    setEditingVisibility({ ...s.visibility });
+    setRenameInput(name);
+  };
+
+  const saveEditedSlot = (applyRename = false) => {
+    if (!editingSlot) return;
+    const finalName = applyRename ? (renameInput.trim() || editingSlot) : editingSlot;
+    const next = { ...slots } as Record<string, { order: string[]; visibility: Record<string, boolean> }>;
+    // if renaming to a different key, delete old
+    if (finalName !== editingSlot) {
+      delete next[editingSlot];
+    }
+    next[finalName] = { order: editingOrder, visibility: editingVisibility };
+    setSlots(next);
+    try { localStorage.setItem(STORAGE_KEY + ':slots', JSON.stringify(next)); } catch (e) {}
+    setEditingSlot(finalName);
+    setSelectedSlot(finalName);
+  };
+
+  const saveAsNewFromEditor = (name: string) => {
+    if (!name) return;
+    const next = { ...slots, [name]: { order: editingOrder.length ? editingOrder : columnOrder, visibility: Object.keys(editingVisibility).length ? editingVisibility : columnVisibility } };
+    setSlots(next);
+    try { localStorage.setItem(STORAGE_KEY + ':slots', JSON.stringify(next)); } catch (e) {}
+    setSelectedSlot(name);
+  };
+
+   const niveauOptions: Record<number, string> = {
+     0: 'Stagiaire',
+     1: 'Junior',
+     2: 'Medior',
+     3: 'Senior',
+   };
+
+  // filtered rows for both views
+  const filteredRows = React.useMemo(() => {
+    if (!searchQuery.trim()) return rows;
+
+    const normalizedQuery = searchQuery.toLowerCase().replace(/-/g, ' ');
+    const queryWords = normalizedQuery.split(/\s+/).filter(word => word.length > 0);
+
+    return rows.filter(eleves => {
+      // Create a searchable string from all eleve fields
+      const searchableText = [
+        eleves.nom,
+        eleves.prenom,
+        eleves.dateNaissance ? new Date(eleves.dateNaissance).toLocaleDateString() : '',
+        eleves.idMyLogiscool,
+        eleves.mdpMyLogiscool,
+        eleves.contingent,
+        eleves.nomCompletParent,
+        eleves.nomCompletResponsable1,
+        eleves.relationResponsable1,
+        eleves.gsmResponsable1,
+        eleves.mailResponsable1,
+        eleves.nomCompletResponsable2,
+        eleves.relationResponsable2,
+        eleves.gsmResponsable2,
+        eleves.mailResponsable2,
+        eleves.nomCompletResponsable3,
+        eleves.relationResponsable3,
+        eleves.gsmResponsable3,
+        eleves.mailResponsable3,
+        eleves.retourSeul ? 'oui' : 'non',
+        eleves.recuperePar,
+        eleves.periodeInscription,
+        eleves.nombreVersements?.toString(),
+        eleves.boursier ? 'oui' : 'non',
+        eleves.cpas ? 'oui' : 'non',
+        eleves.madhesionCIB ? 'oui' : 'non',
+        eleves.nomSociete,
+        eleves.montantBrutQ1?.toString(),
+        eleves.reductionQ1?.toString(),
+        eleves.montantBourseQ1?.toString(),
+        eleves.montantDuQ1?.toString(),
+        eleves.montantFinalQ1?.toString(),
+        eleves.montantPayeQ1?.toString(),
+        eleves.datePayment1 ? new Date(eleves.datePayment1).toLocaleDateString() : '',
+        eleves.periodePaymentQ1,
+        eleves.montantBrutQ2?.toString(),
+        eleves.reductionQ2?.toString(),
+        eleves.montantBourseQ2?.toString(),
+        eleves.montantFinalQ2?.toString(),
+        eleves.montantPayeQ2?.toString(),
+        eleves.datePaymentQ2 ? new Date(eleves.datePaymentQ2).toLocaleDateString() : '',
+        eleves.periodePaymentQ2,
+        eleves.abandon ? 'oui' : 'non',
+        eleves.dateAbandon ? new Date(eleves.dateAbandon).toLocaleDateString() : '',
+        eleves.remarques,
+        eleves.nomResponsableFiscal,
+        eleves.numRegNatResponsableFiscal,
+        eleves.dateNaissanceResponsableFiscal ? new Date(eleves.dateNaissanceResponsableFiscal).toLocaleDateString() : '',
+        eleves.adresseResponsableFiscal,
+        eleves.codePostalResponsableFiscal,
+        eleves.localiteResponsableFiscal,
+        eleves.paysResponsableFiscal,
+        eleves.numRegNationalEleve,
+        eleves.adresseEleve,
+        eleves.codePostalEleve,
+        eleves.localiteEleve,
+        eleves.paysEleve,
+        eleves.rrRestantes?.toString()
+      ].filter(Boolean).join(' ').toLowerCase().replace(/-/g, ' ');
+
+      // Check if all query words are found in the searchable text
+      return queryWords.every(word => searchableText.includes(word));
+    });
+  }, [rows, searchQuery]);
+
+  // (orderedColumns & columnVisibilityModel will be computed after `columns` is declared)
+
+   const niveauValueOptions = Object.entries(niveauOptions).map(([k, label]) => ({ value: Number(k), label }));
+
+   // Columns definition (moved up so it can be referenced by column-order logic)
+   const columns: GridColDef[] = [
+     { field: 'id', headerName: 'ID', width: 80 },
+     { field: 'nom', headerName: 'Nom', width: 150, editable: true },
+     { field: 'prenom', headerName: 'Prénom', width: 150, editable: true },
+     { field: 'dateNaissance', headerName: 'Date Naissance', width: 160, editable: true, type: 'date', valueFormatter: (params: any) => params.value ? new Date(params.value).toLocaleDateString() : '-', },
+     { field: 'idMyLogiscool', headerName: 'ID Logiscool', width: 140, editable: true },
+     { field: 'mdpMyLogiscool', headerName: 'MDP Logiscool', width: 140, editable: true },
+     { field: 'contingent', headerName: 'Contingent', width: 140, editable: true },
+     { field: 'nomCompletParent', headerName: 'Parent', width: 200, editable: true },
+     { field: 'nomCompletResponsable1', headerName: 'Resp1 Nom', width: 180, editable: true },
+     { field: 'relationResponsable1', headerName: 'Resp1 Relation', width: 160, editable: true },
+     { field: 'gsmResponsable1', headerName: 'Resp1 GSM', width: 140, editable: true },
+     { field: 'mailResponsable1', headerName: 'Resp1 Email', width: 200, editable: true },
+     { field: 'nomCompletResponsable2', headerName: 'Resp2 Nom', width: 180, editable: true },
+     { field: 'relationResponsable2', headerName: 'Resp2 Relation', width: 160, editable: true },
+     { field: 'gsmResponsable2', headerName: 'Resp2 GSM', width: 140, editable: true },
+     { field: 'mailResponsable2', headerName: 'Resp2 Email', width: 200, editable: true },
+     { field: 'nomCompletResponsable3', headerName: 'Resp3 Nom', width: 180, editable: true },
+     { field: 'relationResponsable3', headerName: 'Resp3 Relation', width: 160, editable: true },
+     { field: 'gsmResponsable3', headerName: 'Resp3 GSM', width: 140, editable: true },
+     { field: 'mailResponsable3', headerName: 'Resp3 Email', width: 200, editable: true },
+     { field: 'retourSeul', headerName: 'Retour Seul', width: 130, type: 'boolean', editable: true },
+     { field: 'recuperePar', headerName: 'Récupéré Par', width: 160, editable: true },
+     { field: 'periodeInscription', headerName: 'Période Inscription', width: 160, editable: true },
+     { field: 'nombreVersements', headerName: 'Nombre Versements', width: 180, type: 'number', editable: true },
+     { field: 'boursier', headerName: 'Boursier', width: 120, type: 'boolean', editable: true },
+     { field: 'cpas', headerName: 'CPAS', width: 100, type: 'boolean', editable: true },
+     { field: 'madhesionCIB', headerName: 'Club CIB', width: 120, type: 'boolean', editable: true },
+     { field: 'nomSociete', headerName: 'Partenaire', width: 160, editable: true },
+     { field: 'montantBrutQ1', headerName: 'Montant Brut Q1', width: 160, type: 'number', editable: true },
+     { field: 'reductionQ1', headerName: 'Réduction Q1', width: 140, type: 'number', editable: true },
+     { field: 'montantBourseQ1', headerName: 'Bourses 2024 Q1', width: 160, type: 'number', editable: true },
+     { field: 'montantDuQ1', headerName: 'Montant Dû Q1', width: 150, type: 'number', editable: true },
+     { field: 'montantFinalQ1', headerName: 'Montant Final Q1', width: 170, type: 'number', editable: true },
+     { field: 'montantPayeQ1', headerName: 'Montant Payé Q1', width: 170, type: 'number', editable: true },
+     { field: 'datePayment1', headerName: 'Date Paiement Q1', width: 160, editable: true, type: 'date', valueFormatter: (params: any) => params.value ? new Date(params.value).toLocaleDateString() : '-', },
+     { field: 'periodePaymentQ1', headerName: 'Période Paiement Q1', width: 170, editable: true },
+     { field: 'montantBrutQ2', headerName: 'Montant Brut Q2', width: 160, type: 'number', editable: true },
+     { field: 'reductionQ2', headerName: 'Réduction Q2', width: 140, type: 'number', editable: true },
+     { field: 'montantBourseQ2', headerName: 'Bourses Q2', width: 140, type: 'number', editable: true },
+     { field: 'montantFinalQ2', headerName: 'Montant Final Q2', width: 160, type: 'number', editable: true },
+     { field: 'montantPayeQ2', headerName: 'Montant Payé Q2', width: 160, type: 'number', editable: true },
+     { field: 'datePaymentQ2', headerName: 'Date Paiement Q2', width: 160, editable: true, type: 'date', valueFormatter: (params: any) => params.value ? new Date(params.value).toLocaleDateString() : '-', },
+     { field: 'periodePaymentQ2', headerName: 'Période Paiement Q2', width: 170, editable: true },
+     { field: 'abandon', headerName: 'Abandon', width: 110, type: 'boolean', editable: true },
+     { field: 'dateAbandon', headerName: 'Date Abandon', width: 160, editable: true, type: 'date', valueFormatter: (params: any) => params.value ? new Date(params.value).toLocaleDateString() : '-', },
+     { field: 'remarques', headerName: 'Remarques', width: 240, editable: true },
+     { field: 'nomResponsableFiscal', headerName: 'Resp Fiscal Nom', width: 180, editable: true },
+     { field: 'prenomResponsableFiscal', headerName: 'Resp Fiscal Prénom', width: 180, editable: true },
+     { field: 'numRegNatResponsableFiscal', headerName: 'Resp Fiscal Reg Nat', width: 200, editable: true },
+     { field: 'dateNaissanceResponsableFiscal', headerName: 'Resp Fiscal Naissance', width: 200, editable: true, type: 'date', valueFormatter: (params: any) => params.value ? new Date(params.value).toLocaleDateString() : '-', },
+     { field: 'adresseResponsableFiscal', headerName: 'Resp Fiscal Adresse', width: 240, editable: true },
+     { field: 'codePostalResponsableFiscal', headerName: 'Resp Fiscal CP', width: 140, editable: true },
+     { field: 'localiteResponsableFiscal', headerName: 'Resp Fiscal Localité', width: 180, editable: true },
+     { field: 'paysResponsableFiscal', headerName: 'Resp Fiscal Pays', width: 150, editable: true },
+     { field: 'numRegNationalEleve', headerName: 'Élève Reg Nat', width: 160, editable: true },
+     { field: 'adresseEleve', headerName: 'Élève Adresse', width: 220, editable: true },
+     { field: 'codePostalEleve', headerName: 'Élève CP', width: 120, editable: true },
+     { field: 'localiteEleve', headerName: "Élève Localité", width: 160, editable: true },
+     { field: 'paysEleve', headerName: 'Élève Pays', width: 140, editable: true },
+     { field: 'rrRestantes', headerName: 'RR Restantes', width: 140, type: 'number', editable: true },
+   ];
+
+   // compute ordered columns for DataGrid and columnVisibilityModel
+   const orderedColumns = React.useMemo(() => {
+     return columnOrder.map(f => columns.find(c => String(c.field) === f)).filter(Boolean) as GridColDef[];
+   }, [columnOrder, columns]);
+
+   const columnVisibilityModel = React.useMemo(() => {
+     // DataGrid expects { field: boolean } where true means visible
+     return Object.fromEntries(Object.entries(columnVisibility).map(([k, v]) => [k, !!v]));
+   }, [columnVisibility]);
 
   return (
-    <ThemeRegistry>
-      <NavBar />
-      <Container
+    <Container
         maxWidth={false}
         sx={{
           py: { xs: 2, sm: 4 },
@@ -531,14 +388,29 @@ export default function ElevesView() {
         }}
       >
         {/* Header */}
-        <Box display="flex" justifyContent="center" alignItems="center" mb={{ xs: 2, sm: 4 }}>
+        <Box display="flex" justifyContent="space-between" alignItems="center" mb={{ xs: 2, sm: 4 }}>
           <Typography variant="h1" component="h1" sx={{
-            textAlign: 'center',
             fontSize: { xs: '1.75rem', sm: '2rem', md: '2.5rem' },
             fontWeight: 'bold'
           }}>
             Gestion des élèves
           </Typography>
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <IconButton
+              onClick={() => setCurrentTab(0)}
+              color={currentTab === 0 ? 'primary' : 'default'}
+              title="Vue tableau"
+            >
+              <TableChart />
+            </IconButton>
+            <IconButton
+              onClick={() => setCurrentTab(1)}
+              color={currentTab === 1 ? 'primary' : 'default'}
+              title="Vue grille"
+            >
+              <GridView />
+            </IconButton>
+          </Box>
         </Box>
 
         <Paper
@@ -552,269 +424,293 @@ export default function ElevesView() {
             flexDirection: 'column'
           }}
         >
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-            <Typography variant="h5" sx={{ color: 'var(--color-text-primary)' }}>
-              Liste des élèves ({eleves.length})
-            </Typography>
-            <Box sx={{ display: 'flex', gap: 2 }}>
-              <Button variant="contained" color="primary" onClick={handleOpenImport} startIcon={<Upload />}>Import</Button>
-              <Button
-                variant="contained"
-                onClick={() => {
-                  setIsEditable(prev => {
-                    const next = !prev;
-                    if (!next) {
-                      setPendingChanges({});
-                      setDraftEleves(eleves.map(e => ({ ...e })));
-                    }
-                    return next;
-                  });
-                }}
-                title={isEditable ? 'Disable Edit' : 'Enable Edit'}
-              >
-                <Edit />
-              </Button>
-              {isEditable && (
-                <Button
-                  variant="contained"
-                  color="success"
-                  onClick={handleSaveAll}
-                  disabled={Object.keys(pendingChanges).length === 0 || loading}
-                  title="Save changes"
-                >
-                  <Save />
-                </Button>
-              )}
-              <Button variant="outlined" onClick={fetchEleves} title="Refresh">
-                <Refresh />
-              </Button>
-            </Box>
-          </Box>
 
-          <Box sx={{ flex: 1, minHeight: 0 }}>
-            <DataGrid
-              rows={(isEditable ? draftEleves : eleves) as any[]}
-              getRowId={(r: Eleve) => r.id as any}
-              columns={(() => {
-                const dgCols: GridColDef[] = columns
-                  .filter(c => c.field !== 'actions')
-                  .map((c): GridColDef => {
-                    const f = String(c.field);
-                    const base: GridColDef = {
-                      field: f,
-                      headerName: c.header,
-                      width: c.width,
-                      sortable: true,
-                      editable: false,
-                    };
-                    base.renderCell = (params: GridRenderCellParams<any, any>) => {
-                      const rowId = (params.row as any).id as number;
-                      const value = params.value;
-                      if (!isEditable || c.type === 'readonly') {
-                        if (c.type === 'checkbox') return <span>{value ? 'Oui' : 'Non'}</span>;
-                        if (c.type === 'date') {
-                          const d = value ? new Date(value) : null;
-                          return <span>{d && !isNaN(d.getTime()) ? d.toLocaleDateString('fr-FR') : '-'}</span>;
-                        }
-                        return <span>{value ?? '-'}</span>;
-                      }
-                      if (c.type === 'checkbox') {
-                        return (
-                          <Checkbox
-                            checked={Boolean(value)}
-                            onChange={(e) => handleCellChange(rowId, f, e.target.checked)}
-                          />
-                        );
-                      }
-                      if (c.type === 'number') {
-                        return (
-                          <TextField size="small" type="number" value={value ?? ''} onChange={(e) => handleCellChange(rowId, f, e.target.value)} />
-                        );
-                      }
-                      if (c.type === 'date') {
-                        const str = value ? (String(value).includes('T') ? new Date(value).toISOString().slice(0, 10) : String(value)) : '';
-                        return (
-                          <TextField size="small" type="date" value={str} onChange={(e) => handleCellChange(rowId, f, e.target.value)} />
-                        );
-                      }
-                      return (
-                        <TextField size="small" value={value ?? ''} onChange={(e) => handleCellChange(rowId, f, e.target.value)} />
-                      );
-                    };
-                    return base;
-                  });
-                if (isEditable) {
-                  dgCols.push({
-                    field: '__actions__', headerName: 'Actions', width: 120, sortable: false, filterable: false,
-                    renderCell: (params: GridRenderCellParams<any, any>) => (
-                      <Tooltip title="Delete">
-                        <IconButton size="small" color="error" onClick={() => handleTableDelete(params.row as Eleve)}>
-                          <Delete />
-                        </IconButton>
-                      </Tooltip>
-                    )
-                  });
-                }
-                return dgCols;
-              })()}
-              disableRowSelectionOnClick
-              slots={{ toolbar: GridToolbar }}
-              slotProps={{ toolbar: { showQuickFilter: true, quickFilterProps: { debounceMs: 300 } } }}
-              sortingOrder={['asc', 'desc']}
-              disableColumnMenu={false}
-              rowSelection={false}
-              hideFooterPagination
-              hideFooterSelectedRowCount
-              sx={{
-                '& .MuiDataGrid-columnHeaders': {
-                  position: 'sticky',
-                  top: 0,
-                  zIndex: 2,
-                  backgroundColor: 'background.paper'
-                },
-                '& .MuiDataGrid-virtualScroller': {
-                  overflowY: 'auto'
-                },
-                maxHeight: '70vh'
-              }}
-            />
-          </Box>
+          {currentTab === 0 && (
+            <>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <Typography variant="h5" sx={{ color: 'var(--color-text-primary)' }}>
+                    Liste des élèves ({filteredRows.length})
+                  </Typography>
+                  <TextField
+                    size="small"
+                    placeholder="Rechercher dans tous les champs..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    InputProps={{
+                      startAdornment: <InputAdornment position="start"><Search /></InputAdornment>,
+                    }}
+                    sx={{ minWidth: 300 }}
+                  />
+                </Box>
+                <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                  <Button variant="contained" startIcon={<Add />} onClick={() => setCreateDialogOpen(true)}>
+                    Ajouter Élève
+                  </Button>
+
+                  <IconButton
+                    color="error"
+                    onClick={async () => {
+                      if (selectionModel.length === 0) return;
+                      const ok = window.confirm(`Supprimer ${selectionModel.length} élève(s) ?`);
+                      if (!ok) return;
+                      await handleBulkDelete();
+                    }}
+                    disabled={selectionModel.length === 0 || loading}
+                    title="Supprimer sélection"
+                  >
+                    <DeleteIcon />
+                  </IconButton>
+
+                  <Button variant="outlined" onClick={() => setSlotsDialogOpen(true)}>Modifier vue</Button>
+
+                  <Button variant="outlined" onClick={fetchEleves} title="Refresh">
+                    <Refresh />
+                  </Button>
+                </Box>
+              </Box>
+
+              <Box sx={{ mb: 1 }}>
+                {selectionModel.length > 0 && (
+                  <Button color="error" variant="contained" onClick={handleBulkDelete} disabled={loading}>
+                    Supprimer {selectionModel.length} sélectionnés
+                  </Button>
+                )}
+              </Box>
+
+              <Box sx={{ flex: 1, minHeight: 0 }}>
+                <DataGrid
+                  rows={filteredRows}
+                  columns={orderedColumns}
+                  columnVisibilityModel={columnVisibilityModel}
+                  checkboxSelection
+                  disableRowSelectionOnClick
+                  onRowSelectionModelChange={(rowSelectionModel, details) => setSelectionModel(rowSelectionModel as any)}
+                  processRowUpdate={processRowUpdate}
+                  sortingOrder={['asc', 'desc']}
+                  initialState={{
+                    columns: {
+                      columnVisibilityModel: {
+                        id: false,
+                      },
+                    },
+                    sorting: {
+                      sortModel: [{ field: 'nom', sort: 'asc' }],
+                    },
+                  }}
+                  loading={loading}
+                  sx={{
+                    '& .MuiDataGrid-columnHeaders': {
+                      position: 'sticky',
+                      top: 0,
+                      zIndex: 2,
+                      backgroundColor: 'background.paper'
+                    },
+                    '& .MuiDataGrid-virtualScroller': {
+                      overflowY: 'auto'
+                    },
+                    maxHeight: '70vh'
+                  }}
+                />
+              </Box>
+            </>
+          )}
+
+          {currentTab === 1 && (
+            <>
+              {/* Search */}
+              <Box sx={{ mb: 2 }}>
+                <TextField
+                  size="small"
+                  placeholder="Rechercher dans tous les champs..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  InputProps={{
+                    startAdornment: <InputAdornment position="start"><Search /></InputAdornment>,
+                  }}
+                  sx={{ minWidth: 300 }}
+                />
+              </Box>
+
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                <Typography variant="h5" sx={{ color: 'var(--color-text-primary)' }}>
+                  Grille des élèves ({filteredRows.length})
+                </Typography>
+              </Box>
+
+              <Box sx={{ flex: 1, overflow: 'auto' }}>
+                <Box sx={{
+                  display: 'grid',
+                  gridTemplateColumns: {
+                    xs: '1fr',
+                    sm: 'repeat(2, 1fr)',
+                    md: 'repeat(3, 1fr)',
+                    lg: 'repeat(4, 1fr)'
+                  },
+                  gap: 2
+                }}>
+                  {filteredRows.map((eleve) => (
+                    <Card key={eleve.id} sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                      <CardContent sx={{ flex: 1 }}>
+                        <Typography variant="h6" gutterBottom>
+                          {eleve.nom} {eleve.prenom}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {eleve.dateNaissance ? new Date(eleve.dateNaissance).toLocaleDateString('fr-FR') : 'N/A'}
+                        </Typography>
+                        <Typography variant="body2">
+                          Parent: {eleve.nomCompletParent || 'N/A'}
+                        </Typography>
+                        <Typography variant="body2">
+                          Responsable: {eleve.nomCompletResponsable1 || 'N/A'}
+                        </Typography>
+                        <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+                          <Chip label={eleve.boursier ? 'Boursier' : 'Non boursier'} color={eleve.boursier ? 'primary' : 'default'} size="small" />
+                          <Chip label={eleve.abandon ? 'Abandon' : 'Actif'} color={eleve.abandon ? 'error' : 'success'} size="small" />
+                        </Box>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </Box>
+              </Box>
+            </>
+          )}
         </Paper>
 
-        {/* Import Dialog */}
-        <Dialog
-          open={importDialog}
-          onClose={handleCloseImport}
-          maxWidth="xl"
-          fullWidth
-          PaperProps={{ sx: { height: '85vh', maxHeight: '900px', width: '95vw', maxWidth: '1800px' } }}
-        >
-          <DialogTitle>
-            <Box display="flex" justifyContent="space-between" alignItems="center">
-              <Typography variant="h6">Import Élèves</Typography>
-            </Box>
-          </DialogTitle>
-          <DialogContent sx={{ p: 2, height: 'calc(100% - 120px)', display: 'flex', flexDirection: 'column' }}>
-            {validationErrors.length > 0 && (
-              <Alert severity="error" sx={{ mb: 2, flexShrink: 0 }}>
-                <Box>
-                  <Typography variant="subtitle2" gutterBottom>
-                    Please fix the following errors:
-                  </Typography>
-                  <Box component="ul" sx={{ m: 0, pl: 2 }}>
-                    {validationErrors.slice(0, 10).map((er, i) => (<li key={i}>{er}</li>))}
-                    {validationErrors.length > 10 && (<li>... and {validationErrors.length - 10} more errors</li>)}
+        <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)}>
+          <DialogTitle>Ajouter un nouvel élève</DialogTitle>
+          <DialogContent>
+            <TextField
+              autoFocus
+              margin="dense"
+              label="Nom"
+              fullWidth
+              value={newEleve.nom}
+              onChange={(e) => setNewEleve({ ...newEleve, nom: e.target.value })}
+            />
+            <TextField
+              margin="dense"
+              label="Prénom"
+              fullWidth
+              value={newEleve.prenom}
+              onChange={(e) => setNewEleve({ ...newEleve, prenom: e.target.value })}
+            />
+            <TextField
+              margin="dense"
+              label="Date de naissance"
+              type="date"
+              fullWidth
+              value={newEleve.dateNaissance}
+              onChange={(e) => setNewEleve({ ...newEleve, dateNaissance: e.target.value })}
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setCreateDialogOpen(false)}>Annuler</Button>
+            <Button onClick={handleCreateEleve}>Sauvegarder</Button>
+          </DialogActions>
+        </Dialog>
+
+        {/* Columns are managed through the Préréglages (Slots) modal. */}
+
+        <Dialog open={slotsDialogOpen} onClose={() => setSlotsDialogOpen(false)} maxWidth="lg" fullWidth>
+          <DialogTitle>Modifier la vue des colonnes</DialogTitle>
+          <DialogContent dividers sx={{ minHeight: 400 }}>
+            <Box sx={{ display: 'flex', gap: 3 }}>
+              <Box sx={{ width: 300, borderRight: '1px solid', borderColor: 'divider', pr: 2 }}>
+                <Typography variant="h6" sx={{ mb: 2 }}>Vues sauvegardées</Typography>
+                <List sx={{ maxHeight: 300, overflow: 'auto' }}>
+                  {Object.keys(slots).length === 0 && (
+                    <ListItem>
+                      <ListItemText primary="(Aucune vue sauvegardée)" />
+                    </ListItem>
+                  )}
+                  {Object.entries(slots).map(([name, data]) => (
+                    <li key={name}>
+                      <ListItemButton selected={editingSlot === name} onClick={() => startEditingSlot(name)}>
+                        <ListItemText primary={name} />
+                        <ListItemSecondaryAction>
+                          <Button size="small" variant="outlined" onClick={() => { loadSlot(name); setSlotsDialogOpen(false); }}>Appliquer</Button>
+                        </ListItemSecondaryAction>
+                      </ListItemButton>
+                    </li>
+                  ))}
+                </List>
+
+                <Box sx={{ mt: 3 }}>
+                  <Typography variant="subtitle1" sx={{ mb: 1 }}>Créer une nouvelle vue</Typography>
+                  <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                    <TextField size="small" placeholder="Nom de la vue" value={slotName} onChange={(e) => setSlotName(e.target.value)} fullWidth />
+                    <IconButton color="primary" onClick={() => { if (!slotName) return; saveSlot(slotName); setSlotName(''); }} title="Sauvegarder">
+                      <Save />
+                    </IconButton>
                   </Box>
                 </Box>
-              </Alert>
-            )}
-            <Box sx={{ flex: 1, minHeight: 0 }}>
-              <SimpleHotGrid
-                data={importData}
-                columns={[
-                  { data: 'nom', type: 'text', width: 140 },
-                  { data: 'prenom', type: 'text', width: 140 },
-                  { data: 'dateNaissance', type: 'text', width: 130 },
-                  { data: 'idLogiscool', type: 'text', width: 120 },
-                  { data: 'mdpLogiscool', type: 'text', width: 120 },
-                  { data: 'contingent', type: 'text', width: 120 },
-                  { data: 'nomCompletParent', type: 'text', width: 180 },
-                  { data: 'nomCompletResponsable1', type: 'text', width: 180 },
-                  { data: 'relationResponsable1', type: 'text', width: 160 },
-                  { data: 'gsmResponsable1', type: 'text', width: 140 },
-                  { data: 'mailResponsable1', type: 'text', width: 200 },
-                  { data: 'nomCompletResponsable2', type: 'text', width: 180 },
-                  { data: 'relationResponsable2', type: 'text', width: 160 },
-                  { data: 'gsmResponsable2', type: 'text', width: 140 },
-                  { data: 'mailResponsable2', type: 'text', width: 200 },
-                  { data: 'nomCompletResponsable3', type: 'text', width: 180 },
-                  { data: 'relationResponsable3', type: 'text', width: 160 },
-                  { data: 'gsmResponsable3', type: 'text', width: 140 },
-                  { data: 'mailResponsable3', type: 'text', width: 200 },
-                  { data: 'retourSeul', type: 'checkbox', width: 110 },
-                  { data: 'recuperePar', type: 'text', width: 140 },
-                  { data: 'periodeInscription', type: 'text', width: 160 },
-                  { data: 'nombreVersements', type: 'numeric', width: 160 },
-                  { data: 'boursier', type: 'checkbox', width: 110 },
-                  { data: 'cpas', type: 'checkbox', width: 100 },
-                  { data: 'membreClubCIB', type: 'checkbox', width: 140 },
-                  { data: 'nomPartenaire', type: 'text', width: 160 },
-                  { data: 'montantBrutQ1', type: 'numeric', width: 150 },
-                  { data: 'reduction', type: 'numeric', width: 130 },
-                  { data: 'bourses2024Q1', type: 'numeric', width: 160 },
-                  { data: 'montantDu', type: 'numeric', width: 140 },
-                  { data: 'montantFinal', type: 'numeric', width: 150 },
-                  { data: 'montantPaye', type: 'numeric', width: 150 },
-                  { data: 'datePayment', type: 'text', width: 130 },
-                  { data: 'periodePayment', type: 'text', width: 160 },
-                  { data: 'montantBrutQ2', type: 'numeric', width: 150 },
-                  { data: 'reductionQ2', type: 'numeric', width: 130 },
-                  { data: 'boursesQ2', type: 'numeric', width: 130 },
-                  { data: 'montantFinalQ2', type: 'numeric', width: 150 },
-                  { data: 'montantPayeQ2', type: 'numeric', width: 150 },
-                  { data: 'datePaymentQ2', type: 'text', width: 130 },
-                  { data: 'periodePaymentQ2', type: 'text', width: 160 },
-                  { data: 'abandon', type: 'checkbox', width: 110 },
-                  { data: 'dateAbandon', type: 'text', width: 130 },
-                  { data: 'remarques', type: 'text', width: 200 },
-                  { data: 'nomResponsableFiscal', type: 'text', width: 180 },
-                  { data: 'prenomResponsableFiscal', type: 'text', width: 180 },
-                  { data: 'numRegNatResponsableFiscal', type: 'text', width: 200 },
-                  { data: 'dateNaissanceResponsableFiscal', type: 'text', width: 200 },
-                  { data: 'adresseResponsableFiscal', type: 'text', width: 220 },
-                  { data: 'codePostalResponsableFiscal', type: 'text', width: 140 },
-                  { data: 'localiteResponsableFiscal', type: 'text', width: 180 },
-                  { data: 'paysResponsableFiscal', type: 'text', width: 140 },
-                  { data: 'numRegNationalEleve', type: 'text', width: 160 },
-                  { data: 'adresseEleve', type: 'text', width: 200 },
-                  { data: 'codePostalEleve', type: 'text', width: 140 },
-                  { data: 'localiteEleve', type: 'text', width: 160 },
-                  { data: 'paysEleve', type: 'text', width: 140 },
-                  { data: 'rrRestantes', type: 'numeric', width: 140 },
-                ]}
-                colHeaders={[
-                  'Nom *','Prénom *','Naissance *','ID Logiscool','MDP Logiscool','Contingent','Parent',
-                  'Resp1 Nom','Resp1 Relation','Resp1 GSM','Resp1 Email',
-                  'Resp2 Nom','Resp2 Relation','Resp2 GSM','Resp2 Email',
-                  'Resp3 Nom','Resp3 Relation','Resp3 GSM','Resp3 Email',
-                  'Retour Seul','Récupéré Par','Période Inscription','Nombre Versements',
-                  'Boursier','CPAS','Club CIB','Partenaire',
-                  'Brut Q1','Réduction Q1','Bourses 2024 Q1','Dû Q1','Final Q1','Payé Q1','Date Paiement Q1','Période Paiement Q1',
-                  'Brut Q2','Réduction Q2','Bourses Q2','Final Q2','Payé Q2','Date Paiement Q2','Période Paiement Q2',
-                  'Abandon','Date Abandon','Remarques',
-                  'Resp Fiscal Nom','Resp Fiscal Prénom','Resp Fiscal Reg Nat','Resp Fiscal Naissance','Resp Fiscal Adresse','Resp Fiscal CP','Resp Fiscal Localité','Resp Fiscal Pays',
-                  'Élève Reg Nat','Élève Adresse','Élève CP','Élève Localité','Élève Pays','RR Restantes'
-                ]}
-                height={400}
-                minWidth={1400}
-                fitContainer
-                onDataChange={(rows) => {
-                  const next = rows as BulkEleveData[];
-                  if (next.length < 20) {
-                    const pad = Array.from({ length: 20 - next.length }, () => ({
-                      nom: '', prenom: '', dateNaissance: ''
-                    } as BulkEleveData));
-                    setImportData([...next, ...pad]);
-                    return;
-                  }
-                  setImportData(next);
-                }}
-              />
+              </Box>
+
+              <Box sx={{ flex: 1 }}>
+                {!editingSlot && (
+                  <Box sx={{ p: 3, textAlign: 'center' }}>
+                    <Typography variant="body1">Sélectionnez une vue pour l'éditer ou créez-en une nouvelle.</Typography>
+                  </Box>
+                )}
+
+                {editingSlot && (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', p: 1, borderBottom: '1px solid', borderColor: 'divider' }}>
+                      <TextField size="small" label="Renommer la vue" value={renameInput} onChange={(e) => setRenameInput(e.target.value)} fullWidth />
+                      <Button size="small" variant="contained" onClick={() => saveEditedSlot(true)}>Renommer</Button>
+                      <Button size="small" color="error" onClick={() => { if (window.confirm(`Supprimer la vue '${editingSlot}' ?`)) { deleteSlot(editingSlot); } }}>Supprimer</Button>
+                    </Box>
+
+                    <Typography variant="h6">Ordre et visibilité des colonnes</Typography>
+                    <List sx={{ maxHeight: 300, overflow: 'auto', border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
+                      {editingOrder.map((field, idx) => {
+                        const col = columns.find(c => String(c.field) === field);
+                        if (!col) return null;
+                        return (
+                          <ListItem key={field} divider>
+                            <ListItemText primary={col.headerName ?? String(field)} secondary={String(field)} />
+                            <ListItemSecondaryAction sx={{ display: 'flex', gap: 1 }}>
+                              <IconButton size="small" onClick={() => {
+                                setEditingOrder(prev => {
+                                  const next = [...prev];
+                                  if (idx <= 0) return next;
+                                  const t = next[idx-1]; next[idx-1] = next[idx]; next[idx] = t; return next;
+                                });
+                              }} disabled={idx === 0} title="Monter">
+                                <ArrowUpward fontSize="small" />
+                              </IconButton>
+                              <IconButton size="small" onClick={() => {
+                                setEditingOrder(prev => {
+                                  const next = [...prev];
+                                  if (idx >= next.length - 1) return next;
+                                  const t = next[idx+1]; next[idx+1] = next[idx]; next[idx] = t; return next;
+                                });
+                              }} disabled={idx === editingOrder.length - 1} title="Descendre">
+                                <ArrowDownward fontSize="small" />
+                              </IconButton>
+                              <IconButton size="small" onClick={() => setEditingVisibility(prev => ({ ...prev, [field]: !prev[field] }))} title={editingVisibility[field] ? 'Masquer' : 'Afficher'}>
+                                {editingVisibility[field] ? <Visibility /> : <VisibilityOff />}
+                              </IconButton>
+                            </ListItemSecondaryAction>
+                          </ListItem>
+                        );
+                      })}
+                    </List>
+
+                    <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
+                      <Button variant="outlined" onClick={() => { if (editingSlot) startEditingSlot(editingSlot); }}>Réinitialiser</Button>
+                      <Button variant="contained" onClick={() => saveEditedSlot(false)}>Sauvegarder les modifications</Button>
+                    </Box>
+                  </Box>
+                )}
+              </Box>
             </Box>
           </DialogContent>
-          <DialogActions sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
-            <Button onClick={handleCloseImport}>Cancel</Button>
-            <Button
-              onClick={handleBulkImport}
-              variant="contained"
-              disabled={isImporting || validationErrors.length > 0 || importData.filter(r => r.nom?.trim() || r.prenom?.trim() || r.dateNaissance?.trim()).length === 0}
-              startIcon={isImporting ? <CircularProgress size={16} /> : <CloudUpload />}
-            >
-              {isImporting ? 'Importing...' : `Import ${importData.filter(r => r.nom?.trim() || r.prenom?.trim() || r.dateNaissance?.trim()).length} Élèves`}
-            </Button>
+          <DialogActions>
+            <Button onClick={() => setSlotsDialogOpen(false)}>Fermer</Button>
           </DialogActions>
         </Dialog>
       </Container>
-    </ThemeRegistry>
   );
 }

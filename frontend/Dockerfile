@@ -26,6 +26,9 @@ RUN npm install --no-audit --no-fund && npm cache clean --force
 FROM dev-deps AS builder
 WORKDIR /app
 
+# Set API URL for build
+ENV NEXT_PUBLIC_API_URL=https://popa-stefan.be/lmi3/api
+
 # Copy source code
 COPY . .
 

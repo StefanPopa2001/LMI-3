@@ -3,7 +3,8 @@
 
 export const config = {
   // API configuration
-  API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://backend_lmi3:4000',
+  // In production, uses the /lmi3/api path via Traefik reverse proxy
+  API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000',
 
   // Debug / relaxed validation flag mirrored from backend
   DEBUG_NO_VALIDATION: process.env.NEXT_PUBLIC_DEBUG_NO_VALIDATION === 'true',

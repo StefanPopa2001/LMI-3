@@ -1,6 +1,5 @@
 "use client"
 import React, { useState } from 'react'
-import NavBar from '../components/layout/NavBar'
 import { sendTestEmail } from '../services/emailService'
 
 /*
@@ -57,7 +56,6 @@ export default function FAFOView() {
 
   return (
     <div className="min-h-screen" style={{ background: 'linear-gradient(to bottom right, var(--color-bg-secondary), var(--color-bg-primary))' }}>
-      <NavBar />
       <div className="max-w-7xl mx-auto px-6 py-8 pt-24 space-y-10">
         <header>
           <h1 className="text-5xl font-bold mb-2" style={{ color: 'var(--color-text-primary)' }}>FA & FO Playground</h1>

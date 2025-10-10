@@ -65,7 +65,6 @@ import { settingsService, type Setting } from '@/services/settingsService';
 import eleveService, { type Eleve } from '@/services/eleveService';
 import authService from '@/services/authService';
 import attendanceService from '@/services/attendanceService';
-import NavBar from '../components/layout/NavBar';
 import { toast } from 'react-toastify';
 
 interface User {
@@ -636,21 +635,16 @@ const ClassesView: React.FC = () => {
 
   if (loading) {
     return (
-      <div>
-        <NavBar />
-        <Container sx={{ mt: 8 }}>
-          <Box display="flex" justifyContent="center" alignItems="center" minHeight="50vh">
-            <Typography variant="h6">Chargement...</Typography>
-          </Box>
-        </Container>
-      </div>
+      <Container sx={{ mt: 8 }}>
+        <Box display="flex" justifyContent="center" alignItems="center" minHeight="50vh">
+          <Typography variant="h6">Chargement...</Typography>
+        </Box>
+      </Container>
     );
   }
 
   return (
-    <div>
-      <NavBar />
-  <Container maxWidth="xl" sx={{ py: 4, mt: 8 }}>
+    <Container maxWidth="xl" sx={{ py: 4, mt: 8 }}>
       {/* Header */}
       <Box display="flex" justifyContent="center" alignItems="center" mb={4}>
         <Typography variant="h1" component="h1" sx={{ textAlign: 'center', fontSize: '2.5rem', fontWeight: 'bold' }}>
@@ -2988,8 +2982,7 @@ const ClassesView: React.FC = () => {
         </DialogContent>
       </Dialog>
     </Container>
-  </div>
-);
+  );
 
 };
 

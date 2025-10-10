@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from 'react';
 import { Box, Typography, TextField, Button, Switch, FormControlLabel, Divider, Card, CardContent } from '@mui/material';
 import { Brightness4, Brightness7, Palette, Save, Refresh } from '@mui/icons-material';
-import NavBar from '../components/layout/NavBar';
 import { usePageTheme } from '../components/layout/PageThemeProvider';
 
 interface CustomTheme {
@@ -153,7 +152,6 @@ export default function ThemeSettingsView() {
       color: customTheme.textPrimary,
       transition: 'all 0.3s ease'
     }}>
-      <NavBar />
 
       <Box sx={{ p: 4, maxWidth: '1200px', mx: 'auto' }}>
         <Box sx={{ mb: 4, display: 'flex', alignItems: 'center', gap: 2 }}>

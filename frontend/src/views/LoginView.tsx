@@ -1,39 +1,36 @@
 "use client"
 import React, { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { toast, ToastContainer } from "react-toastify"
-import 'react-toastify/dist/ReactToastify.css'
-import ThemeRegistry from "../theme/ThemeRegistry"
+import { notifications } from "@mantine/notifications"
 import authService from "../services/authService"
 
-// MUI
+// Mantine
 import {
   Container,
   Box,
-  Card,
-  CardContent,
-  Typography,
-  TextField,
-  InputAdornment,
-  IconButton,
+  Paper,
+  Title,
+  Text,
+  TextInput,
+  PasswordInput,
   Button,
-  CircularProgress,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  useTheme,
-} from "@mui/material"
-import SchoolIcon from '@mui/icons-material/School'
-import EmailIcon from '@mui/icons-material/Email'
-import LockIcon from '@mui/icons-material/Lock'
-import KeyIcon from '@mui/icons-material/VpnKey'
-import Visibility from '@mui/icons-material/Visibility'
-import VisibilityOff from '@mui/icons-material/VisibilityOff'
+  Image,
+  Stack,
+  Group,
+  Modal,
+  Loader,
+  Center,
+  Flex,
+} from "@mantine/core"
+import { 
+  IconSchool, 
+  IconMail, 
+  IconLock, 
+  IconKey,
+} from '@tabler/icons-react'
 
 export default function LoginView() {
   const router = useRouter()
-  const theme = useTheme()
 
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -41,9 +38,6 @@ export default function LoginView() {
   const [showPasswordChange, setShowPasswordChange] = useState(false)
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
-  const [showPassword, setShowPassword] = useState(false)
-  const [showNewPassword, setShowNewPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
 
   useEffect(() => {
     if (authService.isAuthenticated()) {
@@ -53,10 +47,18 @@ export default function LoginView() {
 
   const handleApiError = (err: any) => {
     if (err?.message && String(err.message).startsWith("AUTH_ERROR:")) {
-      toast.error("Session expirée. Veuillez vous reconnecter.")
+      notifications.show({
+        title: 'Session expirée',
+        message: 'Veuillez vous reconnecter.',
+        color: 'red',
+      })
       return
     }
-    toast.error(err?.message ?? String(err))
+    notifications.show({
+      title: 'Erreur',
+      message: err?.message ?? String(err),
+      color: 'red',
+    })
   }
 
   async function handleLogin(e?: React.FormEvent) {
@@ -68,6 +70,11 @@ export default function LoginView() {
       if (response?.requirePasswordChange) {
         setShowPasswordChange(true)
       } else {
+        notifications.show({
+          title: 'Connexion réussie',
+          message: 'Bienvenue !',
+          color: 'green',
+        })
         router.push("/dashboard")
       }
     } catch (err: any) {
@@ -79,13 +86,22 @@ export default function LoginView() {
 
   const handlePasswordChange = async () => {
     if (newPassword !== confirmPassword) {
-      toast.error("Les mots de passe ne correspondent pas")
+      notifications.show({
+        title: 'Erreur',
+        message: 'Les mots de passe ne correspondent pas',
+        color: 'red',
+      })
       return
     }
     setLoading(true)
     try {
       await authService.changePassword("", newPassword)
       setShowPasswordChange(false)
+      notifications.show({
+        title: 'Succès',
+        message: 'Mot de passe changé avec succès',
+        color: 'green',
+      })
       router.push("/dashboard")
     } catch (err: any) {
       handleApiError(err)
@@ -95,222 +111,192 @@ export default function LoginView() {
   }
 
   return (
-    <>
-    <ThemeRegistry>
+    <Box
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      }}
+    >
+      {/* Left side - Image (hidden on mobile) */}
       <Box
-        sx={{
-          minHeight: '100vh',
+        style={{
+          flex: 1,
           display: 'flex',
-          flexDirection: { xs: 'column', md: 'row' },
-          background: theme.palette.background.default,
+          alignItems: 'center',
+          justifyContent: 'center',
+          position: 'relative',
+          overflow: 'hidden',
         }}
+        visibleFrom="md"
       >
-        {/* Left side - Image (hidden on mobile) */}
+        <Image
+          src="/lmi3/images/cdd_sketch.png"
+          alt="Logiscool Mons Intranet"
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            opacity: 0.3,
+          }}
+        />
         <Box
-          sx={{
-            flex: 1,
-            display: { xs: 'none', md: 'flex' },
-            alignItems: 'center',
-            justifyContent: 'center',
-            bgcolor: 'primary.light',
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            textAlign: 'center',
           }}
         >
-          <Box
-            component="img"
-            src="/LMI3/Webapp/images/cdd_sketch.png"
-            alt="Logiscool Mons Intranet"
-            sx={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              opacity: 0.8,
-            }}
-          />
-        </Box>
-
-        {/* Right side - Login Form */}
-        <Box
-          sx={{
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            p: 4,
-            bgcolor: 'background.paper',
-          }}
-        >
-          <Box
-            sx={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: 2,
-              flex: 1,
-              justifyContent: 'center',
-            }}
-          >
-            <Box
-              sx={{
-                width: { xs: 100, sm: 150, md: 200, lg: 250, xl: 300 },
-                height: { xs: 100, sm: 150, md: 200, lg: 250, xl: 300},
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Box
-                component="img"
-                src="/LMI3/Webapp/images/logo_lmi_iii.png"
-                alt="LMI III Logo"
-                sx={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'contain',
-                }}
-              />
-            </Box>
-
-            <Typography variant="h5" component="h1" sx={{ fontWeight: 700 }}>
-              Logiscool Mons Intranet III
-            </Typography>
-
-            <Typography variant="body2" sx={{ color: 'text.secondary', textAlign: 'center' }}>
-              Connectez vous avec le compte fourni par votre administrateur.
-            </Typography>
-
-            <Box component="form" onSubmit={handleLogin} sx={{ width: '100%', maxWidth: 400, mt: 1 }}>
-              <TextField
-                label="Email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                fullWidth
-                margin="normal"
-                variant="outlined"
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <EmailIcon />
-                    </InputAdornment>
-                  ),
-                }}
-              />
-
-              <TextField
-                label="Mot de passe"
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                fullWidth
-                margin="normal"
-                variant="outlined"
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <LockIcon />
-                    </InputAdornment>
-                  ),
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <IconButton onClick={() => setShowPassword((s) => !s)} edge="end" aria-label="toggle password visibility">
-                        {showPassword ? <VisibilityOff /> : <Visibility />}
-                      </IconButton>
-                    </InputAdornment>
-                  ),
-                }}
-              />
-
-              <Button
-                type="submit"
-                variant="contained"
-                color="primary"
-                disabled={loading}
-                fullWidth
-                sx={{ mt: 2, py: 1.5, fontWeight: 600 }}
-                startIcon={loading ? <CircularProgress size={18} color="inherit" /> : undefined}
-              >
-                {loading ? 'Connexion...' : 'Se connecter'}
-              </Button>
-            </Box>
-
-            <Typography variant="caption" sx={{ color: 'text.secondary', mt: 2, textAlign: 'center' }}>
-              Contactez popa.stefan.pro@gmail.com / 048 606 50 45 en cas de problème.
-            </Typography>
-          </Box>
+          <IconSchool size={120} color="white" opacity={0.8} />
+          <Title order={1} c="white" mt="md">
+            LMI III
+          </Title>
+          <Text c="white" size="xl" mt="xs">
+            Logiscool Mons Intranet
+          </Text>
         </Box>
       </Box>
 
-      <Dialog open={showPasswordChange} onClose={() => setShowPasswordChange(false)} fullWidth maxWidth="sm">
-        <DialogTitle>Changement de mot de passe requis</DialogTitle>
-        <DialogContent>
-          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', mb: 2 }}>
-            <Box sx={{ width: 40, height: 40, bgcolor: 'warning.light', borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <KeyIcon sx={{ color: 'warning.dark' }} />
-            </Box>
-            <Typography>Vous devez changer votre mot de passe avant de continuer. Choisissez un mot de passe sécurisé.</Typography>
-          </Box>
+      {/* Right side - Login Form */}
+      <Flex
+        style={{ flex: 1 }}
+        direction="column"
+        align="center"
+        justify="center"
+        p="xl"
+      >
+        <Container size="xs" w="100%">
+          <Paper shadow="xl" p="xl" radius="lg" className="animate-scale-in">
+            <Stack gap="lg">
+              <Center>
+                <Image
+                  src="/lmi3/images/logo_lmi_iii.png"
+                  alt="LMI III Logo"
+                  w={200}
+                  h={200}
+                  fit="contain"
+                />
+              </Center>
 
-          <TextField
+              <Box>
+                <Title order={2} ta="center" fw={700}>
+                  Bienvenue
+                </Title>
+                <Text c="dimmed" size="sm" ta="center" mt={5}>
+                  Connectez-vous avec le compte fourni par votre administrateur
+                </Text>
+              </Box>
+
+              <form onSubmit={handleLogin}>
+                <Stack gap="md">
+                  <TextInput
+                    label="Email"
+                    placeholder="votre.email@example.com"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    leftSection={<IconMail size={18} />}
+                    size="md"
+                  />
+
+                  <PasswordInput
+                    label="Mot de passe"
+                    placeholder="Votre mot de passe"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    leftSection={<IconLock size={18} />}
+                    size="md"
+                  />
+
+                  <Button
+                    type="submit"
+                    fullWidth
+                    size="md"
+                    disabled={loading}
+                    leftSection={loading ? <Loader size="xs" color="white" /> : undefined}
+                  >
+                    {loading ? 'Connexion...' : 'Se connecter'}
+                  </Button>
+                </Stack>
+              </form>
+
+              <Text size="xs" c="dimmed" ta="center">
+                Contactez popa.stefan.pro@gmail.com / 048 606 50 45 en cas de problème.
+              </Text>
+            </Stack>
+          </Paper>
+        </Container>
+      </Flex>
+
+      <Modal
+        opened={showPasswordChange}
+        onClose={() => setShowPasswordChange(false)}
+        title="Changement de mot de passe requis"
+        size="md"
+        centered
+      >
+        <Stack gap="md">
+          <Paper p="md" withBorder>
+            <Group>
+              <Box
+                style={{
+                  width: 40,
+                  height: 40,
+                  backgroundColor: 'var(--mantine-color-yellow-1)',
+                  borderRadius: 'var(--mantine-radius-md)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <IconKey size={24} color="var(--mantine-color-yellow-9)" />
+              </Box>
+              <Text size="sm" flex={1}>
+                Vous devez changer votre mot de passe avant de continuer. Choisissez un mot de passe sécurisé.
+              </Text>
+            </Group>
+          </Paper>
+
+          <PasswordInput
             label="Nouveau mot de passe"
-            type={showNewPassword ? 'text' : 'password'}
+            placeholder="Entrez votre nouveau mot de passe"
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
             required
-            fullWidth
-            margin="normal"
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <LockIcon />
-                </InputAdornment>
-              ),
-              endAdornment: (
-                <InputAdornment position="end">
-                  <IconButton onClick={() => setShowNewPassword((s) => !s)} edge="end" aria-label="toggle new password visibility">
-                    {showNewPassword ? <VisibilityOff /> : <Visibility />}
-                  </IconButton>
-                </InputAdornment>
-              ),
-            }}
-            helperText="Minimum 8 caractères, inclure majuscule, minuscule et chiffre"
+            leftSection={<IconLock size={18} />}
+            description="Minimum 8 caractères, inclure majuscule, minuscule et chiffre"
           />
 
-          <TextField
+          <PasswordInput
             label="Confirmez le nouveau mot de passe"
-            type={showConfirmPassword ? 'text' : 'password'}
+            placeholder="Confirmez votre mot de passe"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             required
-            fullWidth
-            margin="normal"
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <LockIcon />
-                </InputAdornment>
-              ),
-              endAdornment: (
-                <InputAdornment position="end">
-                  <IconButton onClick={() => setShowConfirmPassword((s) => !s)} edge="end" aria-label="toggle confirm password visibility">
-                    {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
-                  </IconButton>
-                </InputAdornment>
-              ),
-            }}
+            leftSection={<IconLock size={18} />}
           />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setShowPasswordChange(false)} color="secondary">
-            Annuler
-          </Button>
-          <Button onClick={handlePasswordChange} variant="contained" color="primary" disabled={loading || !newPassword || !confirmPassword}>
-            {loading ? <CircularProgress size={18} color="inherit" /> : 'Changer le mot de passe'}
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </ThemeRegistry>
-    <ToastContainer position="top-right" />
-    </>
+
+          <Group justify="flex-end" mt="md">
+            <Button
+              variant="subtle"
+              onClick={() => setShowPasswordChange(false)}
+            >
+              Annuler
+            </Button>
+            <Button
+              onClick={handlePasswordChange}
+              disabled={loading || !newPassword || !confirmPassword}
+              leftSection={loading ? <Loader size="xs" /> : undefined}
+            >
+              {loading ? 'Changement...' : 'Changer le mot de passe'}
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+    </Box>
   )
 }

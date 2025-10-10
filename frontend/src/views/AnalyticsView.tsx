@@ -3,15 +3,11 @@ import React from 'react';
 import { Box, Typography, Container } from '@mui/material';
 import { Analytics } from '@mui/icons-material';
 
-import ThemeRegistry from '../theme/ThemeRegistry';
-import NavBar from '../components/layout/NavBar';
 import BackButton from '../components/ui/BackButton';
 
 export default function AnalyticsView() {
   return (
-    <ThemeRegistry>
-      <NavBar />
-      <Container maxWidth="lg" sx={{ mt: 10 }}>
+    <Container maxWidth="lg" sx={{ mt: 10 }}>
         <BackButton />
         
         <Box sx={{ textAlign: 'center', mt: 8 }}>
@@ -27,6 +23,5 @@ export default function AnalyticsView() {
           </Typography>
         </Box>
       </Container>
-    </ThemeRegistry>
   );
 }

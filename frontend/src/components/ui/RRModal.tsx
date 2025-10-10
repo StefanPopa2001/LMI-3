@@ -8,7 +8,7 @@ import {
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import attendanceService, { type SeanceWithAttendance } from '@/services/attendanceService';
-import eleveService from '@/services/eleveService';
+import eleveService, { Eleve } from '@/services/eleveService';
 import { rrService } from '@/services/rrService';
 
 interface RRModalProps {
@@ -31,7 +31,7 @@ export default function RRModal({ open, onClose, defaultOriginSeanceId, defaultE
   const [penalizeRR, setPenalizeRR] = useState<boolean>(true);
 
   const [allSeances, setAllSeances] = useState<SeanceWithAttendance[]>([]);
-  const [students, setStudents] = useState<Array<{ id: number; nom: string; prenom: string; rrRestantes?: number | null }>>([]);
+  const [students, setStudents] = useState<Eleve[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -221,7 +221,7 @@ export default function RRModal({ open, onClose, defaultOriginSeanceId, defaultE
               <Box>
                 <Typography variant="subtitle1" fontWeight={600} gutterBottom>Élève</Typography>
                 {selectedStudent ? (
-                  <Chip color="secondary" label={`${selectedStudent.prenom} ${selectedStudent.nom} (RR restantes: ${rrRestantes ?? '-'})`} />
+                  <Chip color="secondary" label={`${selectedStudent.prenom || ''} ${selectedStudent.nom} (RR restantes: ${rrRestantes ?? '-'})`} />
                 ) : (
                   <Typography variant="body2" color="text.secondary">Chargement de l'élève...</Typography>
                 )}
@@ -233,7 +233,7 @@ export default function RRModal({ open, onClose, defaultOriginSeanceId, defaultE
                   <InputLabel>Élève</InputLabel>
                   <Select label="Élève" value={eleveId} onChange={e => setEleveId(Number(e.target.value))}>
                     {students.map(s => (
-                      <MenuItem key={s.id} value={s.id}>{s.prenom} {s.nom} {s.rrRestantes != null && <Chip sx={{ ml: 1 }} size="small" label={`RR:${s.rrRestantes}`} />}</MenuItem>
+                      <MenuItem key={s.id} value={s.id}>{s.prenom || ''} {s.nom} {s.rrRestantes != null && <Chip sx={{ ml: 1 }} size="small" label={`RR:${s.rrRestantes}`} />}</MenuItem>
                     ))}
                   </Select>
                 </FormControl>

@@ -57,8 +57,7 @@ import {
 } from '@/services/attendanceService';
 import { authService } from '@/services/authService';
 import { settingsService } from '@/services/settingsService';
-import eleveService from '@/services/eleveService';
-import NavBar from '../components/layout/NavBar';
+import eleveService, { Eleve } from '@/services/eleveService';
 import { toast } from 'react-toastify';
 import { useRouter } from 'next/navigation';
 import RRModal from '@/components/ui/RRModal';
@@ -71,16 +70,6 @@ interface User {
   nom: string;
   prenom: string;
   email: string;
-}
-
-interface Eleve {
-  id: number;
-  nom: string;
-  prenom: string;
-  dateNaissance?: string;
-  niveau?: string;
-  contactParent?: string;
-  notes?: string;
 }
 
 interface Setting {
@@ -459,7 +448,6 @@ const AttendanceView: React.FC = () => {
 
   return (
     <div style={{ position: 'relative' }}>
-      <NavBar />
       <Container maxWidth="xl" sx={{ position: 'relative', py: { xs: 2, sm: 4 }, mt: 8, px: { xs: 2, sm: 3 } }}>
   {/* Full overlay only on the very first load so layout stays; after that use toast */}
   <LoadingOverlay active={loading && isInitialLoad} />
@@ -756,7 +744,7 @@ const AttendanceView: React.FC = () => {
                   </MenuItem>
                   {students.map(student => (
                     <MenuItem key={student.id} value={student.id.toString()}>
-                      {student.prenom} {student.nom}
+                      {student.prenom || ''} {student.nom}
                     </MenuItem>
                   ))}
                 </Select>
@@ -1294,7 +1282,7 @@ const AttendanceView: React.FC = () => {
                                     const extraPresences = seance.presences.filter(p => destRRExtraIds.includes(p.eleveId));
                                     const extraAsEleves = extraPresences.map(p => ({ eleve: p.eleve }));
                                     const combined = [...seance.classe.eleves, ...extraAsEleves]
-                                      .sort((a,b) => `${a.eleve.nom} ${a.eleve.prenom}`.localeCompare(`${b.eleve.nom} ${b.eleve.prenom}`));
+                                      .sort((a,b) => `${a.eleve.nom} ${a.eleve.prenom || ''}`.localeCompare(`${b.eleve.nom} ${b.eleve.prenom || ''}`));
                                     return combined.map(eleveInClasse => {
                                     const presence = seance.presences?.find(p => p.eleveId === eleveInClasse.eleve.id);
                                     const status = presence?.statut || 'no_status';
@@ -1345,7 +1333,7 @@ const AttendanceView: React.FC = () => {
                                           >
                                             <Search sx={{ fontSize: '0.9rem' }} />
                                           </IconButton>
-                                          {eleveInClasse.eleve.prenom} {eleveInClasse.eleve.nom}
+                                          {eleveInClasse.eleve.prenom || ''} {eleveInClasse.eleve.nom}
                                           {originRR && <StatusChip size="small" label="RR o" variant="originRR" />}
                                           {destRR && <StatusChip size="small" label="RR d" variant="destRR" />}
                                         </Typography>
@@ -1615,7 +1603,7 @@ const AttendanceView: React.FC = () => {
                             const extraPresences = seance.presences.filter(p => destRRExtraIds.includes(p.eleveId));
                             const extraAsEleves = extraPresences.map(p => ({ eleve: p.eleve }));
                             const combined = [...seance.classe.eleves, ...extraAsEleves]
-                              .sort((a,b) => `${a.eleve.nom} ${a.eleve.prenom}`.localeCompare(`${b.eleve.nom} ${b.eleve.prenom}`));
+                              .sort((a,b) => `${a.eleve.nom} ${a.eleve.prenom || ''}`.localeCompare(`${b.eleve.nom} ${b.eleve.prenom || ''}`));
                             return combined.map(eleveInClasse => {
                             const presence = seance.presences?.find(p => p.eleveId === eleveInClasse.eleve.id);
                             const status = presence?.statut || 'no_status';
@@ -1659,7 +1647,7 @@ const AttendanceView: React.FC = () => {
                                   alignItems: 'center',
                                   gap: 0.5
                                 }}>
-                                  {eleveInClasse.eleve.prenom} {eleveInClasse.eleve.nom}
+                                  {eleveInClasse.eleve.prenom || ''} {eleveInClasse.eleve.nom}
                                   {originRR && <StatusChip size="small" label="RR o" variant="originRR" />}
                                   {destRR && <StatusChip size="small" label="RR d" variant="destRR" />}
                                 </Typography>
@@ -1882,7 +1870,7 @@ const AttendanceView: React.FC = () => {
                 {(() => {
                   // Build combined list so synthetic RR destination students (already in presences with negative id) are included & sorted
                   const list = [...selectedSeance.presences]
-                    .sort((a, b) => `${a.eleve.nom} ${a.eleve.prenom}`.localeCompare(`${b.eleve.nom} ${b.eleve.prenom}`));
+                    .sort((a, b) => `${a.eleve.nom} ${a.eleve.prenom || ''}`.localeCompare(`${b.eleve.nom} ${b.eleve.prenom || ''}`));
                   return list.map(presence => {
                     const originRR = selectedSeance.rrMap?.origin?.find(r => r.eleveId === presence.eleveId);
                     const destRR = selectedSeance.rrMap?.destination?.find(r => r.eleveId === presence.eleveId);
@@ -1917,7 +1905,7 @@ const AttendanceView: React.FC = () => {
                           <Search sx={{ fontSize: '1rem' }} />
                         </IconButton>
                         <Typography variant="body2" sx={{ color: destRR ? '#1976d2' : originRR ? '#f57c00' : 'var(--color-text-primary)', display: 'flex', alignItems: 'center', gap: 1 }}>
-                          {presence.eleve.prenom} {presence.eleve.nom}
+                          {presence.eleve.prenom || ''} {presence.eleve.nom}
                           {originRR && <StatusChip size="small" label="RR origine" variant="originRR" />}
                           {destRR && <StatusChip size="small" label="RR destin." variant="destRR" />}
                         </Typography>

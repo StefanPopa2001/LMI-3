@@ -1,236 +1,188 @@
 #!/bin/bash
 
-# Production Deployment script for Logiscool
-# Run this scr# Build phase - simple and reliable
-echo "🔨 Building application images..."t from the LMI-3 directory
+# LMI-3 Production Deployment Script
+# Supports fast and complete rebuild modes with zero-downtime deployment
 
-set -e  # Exit on any error
+set -e
 
-echo "🚀 Starting Logiscool production deployment..."
+# Color codes
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
 
-# Load root .env early (for COMPOSE_BAKE or manual BUILD_ID overrides)
+log_info() { echo -e "${BLUE}ℹ️  $1${NC}"; }
+log_success() { echo -e "${GREEN}✅ $1${NC}"; }
+log_warning() { echo -e "${YELLOW}⚠️  $1${NC}"; }
+log_error() { echo -e "${RED}❌ $1${NC}"; }
+
+echo "╔════════════════════════════════════════════╗"
+echo "║     LMI-3 Production Deployment            ║"
+echo "║     popa-stefan.be/lmi3                    ║"
+echo "╚════════════════════════════════════════════╝"
+echo ""
+
 if [ -f ./.env ]; then
-    echo "📦 Loading root .env variables"
-    # shellcheck disable=SC2046
+    log_info "Loading environment variables"
     export $(grep -v '^#' ./.env | grep -E '^[A-Za-z0-9_]+=' | xargs -d '\n')
 fi
 
-# Enable BuildKit for faster builds
 export DOCKER_BUILDKIT=1
 export COMPOSE_DOCKER_CLI_BUILD=1
 
-# Use simple docker-compose build (no bake complexity)
-echo "ℹ️  Using standard docker-compose build (reliable and stable)"
+BUILD_ID="$(date +%Y%m%d-%H%M%S)"
+export BUILD_ID
+log_info "Build ID: $BUILD_ID"
 
-# Pre-deployment checks
-echo "📋 Running pre-deployment checks..."
+log_info "Running pre-deployment checks..."
 
-# Check if Docker is running
 if ! docker info > /dev/null 2>&1; then
-    echo "❌ Docker is not running. Please start Docker and try again."
+    log_error "Docker is not running"
+    exit 1
+fi
+log_success "Docker is running"
+
+if [ ! -f ./docker-compose.yml ]; then
+    log_error "docker-compose.yml not found"
     exit 1
 fi
 
-# Check if domain is pointing to this server
-echo "🌐 Checking domain configuration..."
-DOMAIN_IP=$(dig +short popa-stefan.be)
-SERVER_IP=$(curl -s ifconfig.me)
-if [ "$DOMAIN_IP" != "$SERVER_IP" ]; then
-    echo "⚠️  Warning: Domain popa-stefan.be ($DOMAIN_IP) may not be pointing to this server ($SERVER_IP)"
+if ! docker network inspect starcozka-app-network > /dev/null 2>&1; then
+    log_warning "Creating network..."
+    docker network create starcozka-app-network
 fi
 
-# Create letsencrypt directory if it doesn't exist
-mkdir -p ./letsencrypt
-chmod 600 ./letsencrypt
+echo ""
+echo "Select deployment mode:"
+echo "  1) Fast rebuild (uses cache)"
+echo "  2) Complete rebuild (no cache)"
+echo ""
+read -p "Enter choice [1-2]: " choice
 
-# Pull latest base images
-echo "📥 Pulling latest base images..."
-docker pull traefik:v3.0 || echo "⚠️  Failed to pull traefik image, continuing..."
-docker pull postgres:15 || echo "⚠️  Failed to pull postgres image, continuing..."
-docker pull redis:7-alpine || echo "⚠️  Failed to pull redis image, continuing..."
-docker pull minio/minio:latest || echo "⚠️  Failed to pull minio image, continuing..."
+BUILD_ARGS=""
+case $choice in
+    1)
+        log_info "Using FAST rebuild mode"
+        BUILD_MODE="fast"
+        ;;
+    2)
+        log_info "Using COMPLETE rebuild mode"
+        BUILD_MODE="complete"
+        BUILD_ARGS="--no-cache --pull"
+        ;;
+    *)
+        log_error "Invalid choice"
+        exit 1
+        ;;
+esac
 
-# Stop existing services gracefully
-echo "🛑 Stopping existing services..."
-if [ "$USE_BAKE" = "true" ]; then
-    docker compose down --remove-orphans --volumes || true
-    # Remove any dangling containers from previous deployments
-    docker container prune -f || true
+log_info "Backing up current state..."
+CURRENT_CONTAINERS=$(docker compose ps -q 2>/dev/null || true)
+if [ -n "$CURRENT_CONTAINERS" ]; then
+    docker tag lmi-3-backend_lmi3:latest lmi-3-backend_lmi3:previous 2>/dev/null || true
+    docker tag lmi-3-frontend_lmi3:latest lmi-3-frontend_lmi3:previous 2>/dev/null || true
+    log_success "Backup created"
+fi
+
+echo ""
+log_info "Building images..."
+
+if [ "$BUILD_MODE" = "complete" ]; then
+    docker builder prune -f --filter until=1h
+fi
+
+log_info "Building backend_lmi3..."
+if docker compose build $BUILD_ARGS backend_lmi3; then
+    log_success "Backend built"
 else
-    docker-compose down --remove-orphans --volumes || true
-    # Remove any dangling containers from previous deployments
-    docker container prune -f || true
+    log_error "Backend build failed"
+    exit 1
 fi
 
-# Clean up old images and build cache
-echo "🧹 Cleaning up old Docker images and build cache..."
-docker image prune -f
-docker builder prune -f --filter until=24h
-
-BUILD_ID=$(date +%Y%m%d%H%M%S)-$RANDOM
-export BUILD_ID
-echo "🔢 Using BUILD_ID=$BUILD_ID"
-
-# ------------- BUILD PHASE WITH PANIC / FAILURE FALLBACK -------------
-echo "� Starting build phase (panic-aware)..."
-
-echo "� Building backend image..."
-docker-compose build backend
-
-echo "📦 Building frontend image (no-cache for fresh builds)..."
-docker-compose build --no-cache frontend
-
-echo "✅ Build phase completed successfully"
-
-# Start services (force recreate to avoid stale containers)
-echo "🚢 Starting services (forcing recreate, propagating BUILD_ID to runtime)..."
-
-# Start Traefik first to ensure network is ready
-echo "🔀 Starting Traefik first..."
-docker-compose up -d traefik --force-recreate
-
-# Wait for Traefik to be ready
-echo "⏳ Waiting for Traefik to initialize..."
-sleep 10
-
-# Start remaining services
-echo "🚢 Starting all services..."
-docker-compose up -d --force-recreate
-
-# Wait for services to be healthy
-echo "⏳ Waiting for services to be healthy..."
-sleep 30
-
-# Restart Traefik to ensure it picks up all service labels
-echo "🔄 Restarting Traefik to refresh service discovery..."
-docker-compose restart traefik
-
-# Wait for Traefik to restart
-sleep 15
-
-# Check health of all services with improved validation
-echo "🩺 Checking service health..."
-PS_CMD="docker-compose"
-
-FAILED_SERVICES=()
-for service in traefik db redis backend frontend minio; do
-    if $PS_CMD ps $service | grep -q "Up"; then
-        echo "✅ $service is running"
-        
-        # Additional health checks for critical services
-        case $service in
-            traefik)
-                echo "   🔍 Checking Traefik dashboard accessibility..."
-                if docker exec traefik wget -q --spider http://localhost:8080/api/http/routers 2>/dev/null; then
-                    echo "   ✅ Traefik API is responding"
-                else
-                    echo "   ⚠️  Traefik API not responding yet"
-                fi
-                ;;
-            backend)
-                echo "   🔍 Checking backend health..."
-                sleep 5  # Give backend time to start
-                if docker exec backend wget -q --spider http://localhost:4000/health 2>/dev/null || docker exec backend curl -f http://localhost:4000/health >/dev/null 2>&1; then
-                    echo "   ✅ Backend health check passed"
-                else
-                    echo "   ⚠️  Backend health check failed (may still be starting)"
-                fi
-                ;;
-            frontend)
-                echo "   🔍 Checking frontend health..."
-                sleep 3  # Give frontend time to start
-                if docker exec frontend wget -q --spider http://localhost:3000 2>/dev/null || docker exec frontend curl -f http://localhost:3000 >/dev/null 2>&1; then
-                    echo "   ✅ Frontend health check passed"
-                else
-                    echo "   ⚠️  Frontend health check failed (may still be starting)"
-                fi
-                ;;
-        esac
-    else
-        echo "❌ $service failed to start"
-        FAILED_SERVICES+=($service)
-        echo "   📋 Recent logs for $service:"
-        $PS_CMD logs $service --tail=10
-        echo ""
-    fi
-done
-
-# Report on failed services
-if [ ${#FAILED_SERVICES[@]} -gt 0 ]; then
-    echo "⚠️  Warning: ${#FAILED_SERVICES[@]} service(s) failed to start properly: ${FAILED_SERVICES[*]}"
-    echo "   Check logs with: $PS_CMD logs <service_name>"
+log_info "Building frontend_lmi3..."
+if docker compose build $BUILD_ARGS frontend_lmi3; then
+    log_success "Frontend built"
+else
+    log_error "Frontend build failed"
+    exit 1
 fi
 
-# Test database migration
-echo "🗄️  Running database migrations..."
-echo "   ⏳ Waiting for database to be fully ready..."
+echo ""
+log_info "Starting services..."
+docker compose up -d --no-deps --force-recreate db_postgres_lmi3 redis_lmi3
+
+log_info "Waiting for database..."
 sleep 10
 
-# Check if backend container is ready for database operations
-MAX_RETRIES=5
-RETRY_COUNT=0
-while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    if docker-compose exec -T backend npx prisma migrate deploy 2>/dev/null; then
-        echo "   ✅ Database migrations completed successfully"
+docker compose up -d --no-deps --force-recreate backend_lmi3
+
+log_info "Waiting for database and running schema push..."
+sleep 10
+
+for i in {1..3}; do
+    if docker compose exec -T backend_lmi3 npx prisma db push --accept-data-loss; then
+        log_success "Schema push completed"
         break
     else
-        echo "   ⏳ Migration attempt $((RETRY_COUNT + 1))/$MAX_RETRIES failed, retrying in 10s..."
-    fi
-    
-    RETRY_COUNT=$((RETRY_COUNT + 1))
-    if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
-        sleep 10
+        if [ $i -eq 3 ]; then
+            log_error "Schema push failed"
+            exit 1
+        fi
+        log_warning "Retry $i/3..."
+        sleep 5
     fi
 done
 
-if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
-    echo "   ⚠️  Migration failed after $MAX_RETRIES attempts. Check backend and database logs:"
-    echo "     - Backend logs: $PS_CMD logs backend --tail=20"
-    echo "     - Database logs: $PS_CMD logs db --tail=20"
-fi
+docker compose up -d --no-deps --force-recreate frontend_lmi3
 
-# Final deployment validation
-echo "🧪 Running final deployment validation..."
+echo ""
+log_info "Checking for admin user..."
 
-# Test external connectivity
-echo "🌐 Testing external connectivity to your domain..."
-if curl -s --max-time 10 -o /dev/null -w "%{http_code}" https://popa-stefan.be | grep -q "200\|301\|302"; then
-    echo "   ✅ Domain is responding to HTTPS requests"
+ADMIN_CHECK=$(docker compose exec -T backend_lmi3 node -e "
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
+prisma.user.findFirst({ where: { admin: true } })
+  .then(user => {
+    console.log(user ? 'FOUND' : 'NOT_FOUND');
+    return prisma.\$disconnect();
+  })
+  .catch(err => {
+    console.error('ERROR');
+    return prisma.\$disconnect();
+  });
+" 2>/dev/null || echo "ERROR")
+
+if [ "$ADMIN_CHECK" = "NOT_FOUND" ]; then
+    log_warning "No admin found"
+    log_info "Creating admin user..."
+    if docker compose exec -T backend_lmi3 node create-admin.js; then
+        log_success "Admin created"
+    else
+        log_error "Admin creation failed"
+    fi
+elif [ "$ADMIN_CHECK" = "FOUND" ]; then
+    log_success "Admin user exists"
 else
-    echo "   ⚠️  Domain not responding properly to HTTPS (may need time to propagate)"
+    log_warning "Could not verify admin"
 fi
 
-# Check Traefik routing
-echo "🔀 Checking Traefik service discovery..."
-TRAEFIK_SERVICES=$(docker-compose exec -T traefik wget -qO- http://localhost:8080/api/http/services 2>/dev/null | grep -o '"name":"[^"]*"' | wc -l || echo "0")
-echo "   🔍 Traefik discovered $TRAEFIK_SERVICES services"
-
-# Final status check
-echo "📊 Final service status:"
-docker-compose ps
 echo ""
-echo "🔍 Service resource usage:"
-docker-compose top 2>/dev/null || echo "   ℹ️  Resource usage info not available"
+log_success "Deployment successful!"
+
+log_info "Cleaning up..."
+docker image prune -f
+docker rmi lmi-3-backend_lmi3:previous 2>/dev/null || true
+docker rmi lmi-3-frontend_lmi3:previous 2>/dev/null || true
 
 echo ""
-echo "🔍 Build information:"
-echo "   📦 Frontend image build ID: $BUILD_ID"
-docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.CreatedAt}}\t{{.Size}}" | grep -E "(frontend|backend)" || true
-
+echo "╔════════════════════════════════════════════╗"
+echo "║     DEPLOYMENT SUCCESSFUL! 🎉              ║"
+echo "╚════════════════════════════════════════════╝"
 echo ""
-echo "🎉 Deployment complete!"
-echo "🌐 Access your app at: https://popa-stefan.be"
-echo "🆔 Build ID: $BUILD_ID (visible in browser console as config.BUILD_ID)"
+echo "  📦 Build ID: $BUILD_ID"
+echo "  🔨 Mode: $BUILD_MODE"
+echo "  🌐 URL: https://popa-stefan.be/lmi3"
+echo "  🔗 API: https://popa-stefan.be/lmi3/api"
 echo ""
-echo "📋 Useful commands:"
-echo "  📝 Check logs: $PS_CMD logs -f [service_name]"
-echo "  🔍 Monitor services: $PS_CMD ps"
-echo "  🔄 Restart service: $PS_CMD restart [service_name]"
-echo "  🛑 Stop all: $PS_CMD down"
-echo "  📊 Resource usage: $PS_CMD top"
-echo ""
-echo "🔐 Security reminders:"
-echo "  - Change default database credentials in production"
-echo "  - Update JWT secret key"
-echo "  - Review firewall settings"
-echo "  - Monitor logs regularly for security issues"
+docker compose ps

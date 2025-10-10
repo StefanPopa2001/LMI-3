@@ -27,7 +27,34 @@ export const getStatusColor = (status: string): string => {
 /**
  * Get a complete set of classes for a themed component
  */
-// Removed Tailwind class helpers; use MUI sx and theme instead.
+export const getThemedClasses = {
+  page: {
+    container: 'min-h-screen bg-background-default p-6',
+    header: 'mb-8',
+    content: 'space-y-6'
+  },
+  card: {
+    base: 'bg-background-paper rounded-lg shadow-sm border border-border-light',
+    header: 'px-6 py-4 border-b border-border-light',
+    body: 'px-6 py-4'
+  },
+  button: {
+    primary: 'bg-primary-main text-primary-contrast hover:bg-primary-dark px-4 py-2 rounded-md font-medium transition-colors',
+    secondary: 'bg-secondary-main text-secondary-contrast hover:bg-secondary-dark px-4 py-2 rounded-md font-medium transition-colors',
+    success: 'bg-success-main text-success-contrast hover:bg-success-dark px-4 py-2 rounded-md font-medium transition-colors',
+    danger: 'bg-error-main text-error-contrast hover:bg-error-dark px-4 py-2 rounded-md font-medium transition-colors'
+  },
+  form: {
+    label: 'block text-sm font-medium text-text-primary',
+    input: 'border border-border-light rounded-md px-3 py-2 bg-background-paper text-text-primary focus:outline-none focus:ring-2 focus:ring-primary-main focus:border-transparent'
+  },
+  status: {
+    success: 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-success-main text-success-contrast',
+    error: 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-error-main text-error-contrast',
+    warning: 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-warning-main text-warning-contrast',
+    info: 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-info-main text-info-contrast'
+  }
+};
 
 /**
  * Get color for specific card types

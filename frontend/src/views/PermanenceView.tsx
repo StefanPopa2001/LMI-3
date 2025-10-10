@@ -3,7 +3,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Box, Typography, Container, Card, CardContent, Avatar, IconButton, Select, MenuItem, FormControl, InputLabel, Tooltip, Alert, Divider } from '@mui/material';
 import { Edit as EditIcon, Save as SaveIcon, Person as PersonIcon, ChevronLeft, ChevronRight, RestartAlt } from '@mui/icons-material';
 
-import NavBar from '../components/layout/NavBar';
 import { permanenceService, type PermanenceSlot } from '@/services/permanenceService';
 import { authService, type User } from '@/services/authService';
 import { attendanceCalendarService, type AttendanceDayDTO } from '@/services/attendanceCalendarService';
@@ -272,7 +271,6 @@ export default function PermanenceView() {
 
   return (
     <>
-      <NavBar />
       <Container maxWidth="xl" sx={{ mt: 10, mb: 4 }}>
         <Box display="flex" justifyContent="center" alignItems="center" mb={{ xs: 2, sm: 4 }}>
           <Typography variant="h1" component="h1" sx={{ 

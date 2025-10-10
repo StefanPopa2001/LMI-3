@@ -2,10 +2,8 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import NavBar from '../components/layout/NavBar';
 import { toast } from 'react-toastify';
 import { settingsService, Setting, GroupedSettings, CreateSettingData } from '../services/settingsService';
-import ThemeRegistry from '../theme/ThemeRegistry';
 import {
   Box,
   Button,
@@ -135,21 +133,16 @@ export default function SettingsView() {
 
   if (!mounted) {
     return (
-      <ThemeRegistry>
-        <NavBar />
-        <Container sx={{ py: 6, mt: 10 }}>
-          <Typography>Chargement…</Typography>
-        </Container>
-      </ThemeRegistry>
+      <Container sx={{ py: 6, mt: 10 }}>
+        <Typography>Chargement…</Typography>
+      </Container>
     );
   }
 
   if (!authService.isAuthenticated() || !authService.isAdmin()) return null;
 
   return (
-    <ThemeRegistry>
-      <NavBar />
-      <Container maxWidth="lg" sx={{ py: 6, mt: 10 }}>
+    <Container maxWidth="lg" sx={{ py: 6, mt: 10 }}>
         <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 3 }}>
           <Box>
             <Typography variant="h4" fontWeight={700}>Paramètres des cours</Typography>
@@ -251,6 +244,5 @@ export default function SettingsView() {
           </DialogActions>
         </Dialog>
       </Container>
-    </ThemeRegistry>
   );
 }

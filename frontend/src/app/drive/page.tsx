@@ -1,6 +1,5 @@
 "use client";
 import React, { useEffect, useState, useCallback } from 'react';
-import NavBar from '@/components/layout/NavBar';
 import { driveService, type DriveFile, type DriveListResponse } from '@/services/driveService';
 import { Box, Container, Typography, Paper, Button, IconButton, LinearProgress, Card, CardContent, CardActions, Collapse, TextField, InputAdornment, Breadcrumbs, Dialog, DialogTitle, DialogContent, DialogActions, Divider } from '@mui/material';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -198,9 +197,7 @@ export default function DrivePage() {
   const humanPrefix = breadcrumbParts.length === 0 ? 'Racine' : undefined;
 
   return (
-    <Box sx={{ minHeight: '100vh', bgcolor: 'var(--color-bg-main)' }}>
-      <NavBar title="Drive" />
-      <ToolbarOffset />
+    <>
       <Container maxWidth="lg" sx={{ py: 4 }}>
         <Paper sx={{ p:3, bgcolor: 'var(--color-bg-primary)' }}>
           <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
@@ -377,7 +374,7 @@ export default function DrivePage() {
           <Button onClick={()=>{ setPreviewItem(null); setPreviewContent(null); }}>Fermer</Button>
         </DialogActions>
       </Dialog>
-    </Box>
+    </>
   );
 }
 

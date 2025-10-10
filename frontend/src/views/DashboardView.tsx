@@ -2,28 +2,23 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import {
-  People as PeopleIcon,
-  Person as PersonIcon,
-  School as SchoolIcon,
-  CalendarToday as CalendarTodayIcon,
-  TrendingUp as TrendingUpIcon,
-  Replay as ReplayIcon,
-  CreditCard as CreditCardIcon,
-  Work as WorkIcon,
-  Cloud as CloudIcon,
-  Science as ScienceIcon,
-  Badge as BadgeIcon,
-  Groups2 as Groups2Icon,
-  Settings as SettingsIcon,
-  Storage as StorageIcon,
-  Build as BuildIcon,
-  AdminPanelSettings as AdminPanelSettingsIcon,
-} from '@mui/icons-material'
-import { Dashboard as DashboardIcon } from '@mui/icons-material'
-import { Container, Typography, Box } from '@mui/material'
-
-import DashboardFeatureCard from "../ui/organisms/DashboardFeatureCard"
-import NavBar from "../components/layout/NavBar"
+  IconUsers,
+  IconUsersGroup,
+  IconSchool,
+  IconCalendarEvent,
+  IconChartBar,
+  IconRepeat,
+  IconCreditCard,
+  IconBriefcase,
+  IconCloud,
+  IconFlask,
+  IconUserShield,
+  IconSettings,
+  IconDatabase,
+  IconTools,
+  IconShield,
+} from '@tabler/icons-react'
+import { Container, Box, Typography, Card, CardContent, CardActionArea, Avatar } from '@mui/material'
 
 interface UserStats {
   totalUsers: number
@@ -41,7 +36,6 @@ export default function DashboardView() {
     tempPasswordUsers: 0,
   })
 
-  // Helper function to handle API errors
   const handleApiError = (err: any) => {
     if (err.message && err.message.startsWith("AUTH_ERROR:")) {
       router.push("/login")
@@ -57,10 +51,6 @@ export default function DashboardView() {
   const fetchUserStats = async () => {
     try {
       // Note: Keeping the original auth logic intact as requested
-      // if (authService.isAuthenticated()) {
-      //   const stats = await authService.getUserStats();
-      //   setUserStats(stats);
-      // }
     } catch (error: any) {
       handleApiError(error)
     }
@@ -70,21 +60,21 @@ export default function DashboardView() {
     {
       title: "Utilisateurs",
       description: "Gérer les utilisateurs du système",
-      icon: <BadgeIcon fontSize="inherit" />,
+      icon: <IconUserShield />,
       route: "/users",
       stats: `${userStats.totalUsers} utilisateurs`,
     },
     {
       title: "Étudiants",
       description: "Gestion des élèves et inscriptions",
-      icon: <Groups2Icon fontSize="inherit" />,
+      icon: <IconUsersGroup />,
       route: "/users/crud",
       stats: "Gestion scolaire",
     },
     {
       title: "Classes",
       description: "Organiser et gérer les classes",
-      icon: <SchoolIcon fontSize="inherit" />,
+      icon: <IconSchool />,
       route: "/classes",
       stats: "Gestion des cours",
     },
@@ -94,28 +84,28 @@ export default function DashboardView() {
     {
       title: "Présences",
       description: "Suivre les présences aux cours",
-      icon: <CalendarTodayIcon fontSize="inherit" />,
+      icon: <IconCalendarEvent />,
       route: "/attendance",
       stats: "Suivi en temps réel",
     },
     {
       title: "RR",
       description: "Replacements et rattrapages",
-      icon: <ReplayIcon fontSize="inherit" />,
+      icon: <IconRepeat />,
       route: "/rr",
       stats: "Tous les RR",
     },
     {
       title: "Logipay",
       description: "Gestion des paiements et facturation",
-      icon: <CreditCardIcon fontSize="inherit" />,
+      icon: <IconCreditCard />,
       route: "/logipay",
       stats: "Paiements en ligne",
     },
     {
       title: "Drive",
       description: "Fichiers partagés / stockage",
-      icon: <CloudIcon fontSize="inherit" />,
+      icon: <IconCloud />,
       route: "/drive",
       stats: "Stockage",
     },
@@ -125,136 +115,177 @@ export default function DashboardView() {
     {
       title: "Settings",
       description: "Manage course dropdowns and settings",
-      icon: <SettingsIcon fontSize="inherit" />,
+      icon: <IconSettings />,
       route: "/settings",
       stats: "Configuration",
     },
     {
       title: "Permanence",
       description: "Gestion des permanences et surveillance",
-      icon: <WorkIcon fontSize="inherit" />,
+      icon: <IconBriefcase />,
       route: "/permanence",
       stats: "Surveillance active",
     },
     {
       title: "Analyses",
       description: "Statistiques et rapports détaillés",
-      icon: <TrendingUpIcon fontSize="inherit" />,
+      icon: <IconChartBar />,
       route: "/stats",
       stats: "Données complètes",
     },
     {
       title: "FA & FO",
       description: "Zone de tests (Playground)",
-      icon: <ScienceIcon fontSize="inherit" />,
+      icon: <IconFlask />,
       route: "/fafo",
       stats: "Expérimentations",
     },
   ]
 
+  const accentuationColors = [
+    'primary.main', 'secondary.main', 'success.main', 'warning.main', 'info.main',
+    'error.main', '#9c27b0', '#ff5722', '#607d8b', '#00bcd4'
+  ]
+
+  const DashboardCard = ({ title, description, icon, route, stats, index }: any) => {
+    const color = accentuationColors[index % accentuationColors.length]
+
+    return (
+      <Card 
+        sx={{ 
+          height: '100%', 
+          cursor: 'pointer',
+          transition: 'all 0.3s ease',
+          '&:hover': {
+            transform: 'translateY(-4px)',
+            boxShadow: 4,
+          },
+          minWidth: 280,
+          maxWidth: 320
+        }}
+        onClick={() => router.push(route)}
+      >
+        <CardActionArea sx={{ height: '100%', p: 2 }}>
+          <CardContent sx={{ 
+            display: 'flex', 
+            flexDirection: 'column', 
+            alignItems: 'center', 
+            textAlign: 'center',
+            height: '100%',
+            minHeight: 180
+          }}>
+            <Avatar 
+              sx={{ 
+                bgcolor: color, 
+                width: 80, 
+                height: 80, 
+                mb: 2,
+                '& svg': { fontSize: 40 }
+              }}
+            >
+              {icon}
+            </Avatar>
+            
+            <Typography variant="h6" component="h2" gutterBottom>
+              {title}
+            </Typography>
+            
+            {stats && (
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                {stats}
+              </Typography>
+            )}
+
+            {description && (
+              <Typography variant="caption" color="text.secondary">
+                {description}
+              </Typography>
+            )}
+          </CardContent>
+        </CardActionArea>
+      </Card>
+    )
+  }
+
   return (
-    <Box sx={{ minHeight: '100vh', background: 'linear-gradient(to bottom right, var(--color-bg-secondary), var(--color-bg-primary))', mt: 8 }}>
-      <NavBar />
-      <Container maxWidth="lg" sx={{ py: 4, pt: 2 }}>
-        {/* Base de données Section */}
-        <Box sx={{ mb: 8 }}>
-          <Typography variant="h3" fontWeight={800} gutterBottom color="text.primary" sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <StorageIcon fontSize="large" />
-            Base de données
-          </Typography>
-          <Box
-            sx={{
-              display: 'grid',
-              gap: 3,
-              gridTemplateColumns: {
-                xs: '1fr',
-                sm: 'repeat(2, 1fr)',
-                md: 'repeat(3, 1fr)',
-                lg: 'repeat(4, 1fr)'
-              }
-            }}
-          >
-            {databaseCards.map((card, index) => (
-              <Box key={card.title}>
-                <DashboardFeatureCard
-                  title={card.title}
-                  description={card.description}
-                  route={card.route}
-                  icon={card.icon}
-                  stats={card.stats}
-                  index={index}
-                />
-              </Box>
-            ))}
-          </Box>
+    <Container maxWidth="xl" sx={{ py: 4 }}>
+      {/* Base de données Section */}
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h4" component="h1" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
+          <IconDatabase size={32} />
+          Base de données
+        </Typography>
+        <Box sx={{ 
+          display: 'flex', 
+          flexWrap: 'wrap', 
+          gap: 3,
+          '& > *': { flex: '1 1 280px', maxWidth: '320px' }
+        }}>
+          {databaseCards.map((card, index) => (
+            <DashboardCard
+              key={card.title}
+              title={card.title}
+              description={card.description}
+              route={card.route}
+              icon={card.icon}
+              stats={card.stats}
+              index={index}
+            />
+          ))}
         </Box>
+      </Box>
 
-        {/* Outils Section */}
-        <Box sx={{ mb: 8 }}>
-          <Typography variant="h3" fontWeight={800} gutterBottom color="text.primary" sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <BuildIcon fontSize="large" />
-            Outils
-          </Typography>
-          <Box
-            sx={{
-              display: 'grid',
-              gap: 3,
-              gridTemplateColumns: {
-                xs: '1fr',
-                sm: 'repeat(2, 1fr)',
-                md: 'repeat(3, 1fr)',
-                lg: 'repeat(4, 1fr)'
-              }
-            }}
-          >
-            {toolsCards.map((card, index) => (
-              <Box key={card.title}>
-                <DashboardFeatureCard
-                  title={card.title}
-                  description={card.description}
-                  route={card.route}
-                  icon={card.icon}
-                  stats={card.stats}
-                  index={index + 3}
-                />
-              </Box>
-            ))}
-          </Box>
+      {/* Outils Section */}
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h4" component="h1" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
+          <IconTools size={32} />
+          Outils
+        </Typography>
+        <Box sx={{ 
+          display: 'flex', 
+          flexWrap: 'wrap', 
+          gap: 3,
+          '& > *': { flex: '1 1 280px', maxWidth: '320px' }
+        }}>
+          {toolsCards.map((card, index) => (
+            <DashboardCard
+              key={card.title}
+              title={card.title}
+              description={card.description}
+              route={card.route}
+              icon={card.icon}
+              stats={card.stats}
+              index={index + 3}
+            />
+          ))}
         </Box>
+      </Box>
 
-        {/* Administration Section */}
-        <Box>
-          <Typography variant="h3" fontWeight={800} gutterBottom color="text.primary" sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <AdminPanelSettingsIcon fontSize="large" />
-            Administration
-          </Typography>
-          <Box
-            sx={{
-              display: 'grid',
-              gap: 3,
-              gridTemplateColumns: {
-                xs: '1fr',
-                sm: 'repeat(2, 1fr)',
-                md: 'repeat(3, 1fr)',
-                lg: 'repeat(4, 1fr)'
-              }
-            }}
-          >
-            {adminCards.map((card, index) => (
-              <Box key={card.title}>
-                <DashboardFeatureCard
-                  title={card.title}
-                  description={card.description}
-                  route={card.route}
-                  icon={card.icon}
-                  stats={card.stats}
-                  index={index + 7}
-                />
-              </Box>
-            ))}
-          </Box>
+      {/* Administration Section */}
+      <Box>
+        <Typography variant="h4" component="h1" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3 }}>
+          <IconShield size={32} />
+          Administration
+        </Typography>
+        <Box sx={{ 
+          display: 'flex', 
+          flexWrap: 'wrap', 
+          gap: 3,
+          '& > *': { flex: '1 1 280px', maxWidth: '320px' }
+        }}>
+          {adminCards.map((card, index) => (
+            <DashboardCard
+              key={card.title}
+              title={card.title}
+              description={card.description}
+              route={card.route}
+              icon={card.icon}
+              stats={card.stats}
+              index={index + 7}
+            />
+          ))}
         </Box>
-      </Container>
-    </Box>
+      </Box>
+    </Container>
   )
 }

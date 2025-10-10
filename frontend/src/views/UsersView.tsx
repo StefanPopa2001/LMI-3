@@ -13,10 +13,8 @@ import { Add, Refresh, Delete as DeleteIcon, ViewColumn as ViewColumnIcon, Arrow
 import VpnKeyIcon from '@mui/icons-material/VpnKey';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import NavBar from '../components/layout/NavBar';
 import authService, { User } from '../services/authService';
 import { useRouter } from 'next/navigation';
-import ThemeRegistry from '../theme/ThemeRegistry';
 
 export default function UsersView() {
   const [rows, setRows] = React.useState<User[]>([]);
@@ -683,8 +681,7 @@ export default function UsersView() {
    }, [columnVisibility]);
 
   return (
-    <ThemeRegistry>
-      <NavBar />
+    <>
       <Container
         maxWidth={false}
         sx={{
@@ -1396,6 +1393,6 @@ export default function UsersView() {
         </Dialog>
       </Container>
       <ToastContainer />
-    </ThemeRegistry>
+    </>
   );
 }

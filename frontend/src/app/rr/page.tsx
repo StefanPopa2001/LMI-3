@@ -1,7 +1,6 @@
 "use client";
 import React, { useEffect, useState } from 'react';
 import { rrService, type RRItem } from '@/services/rrService';
-import NavBar from '@/components/layout/NavBar';
 import { Container, Typography, Box, Paper, Chip, Stack } from '@mui/material';
 
 export default function RRPage() {
@@ -20,9 +19,7 @@ export default function RRPage() {
   }, []);
 
   return (
-    <div>
-      <NavBar />
-      <Container sx={{ mt: 10 }}>
+    <Container sx={{ mt: 2 }}>
         <Typography variant="h4" gutterBottom>Replacements (RR)</Typography>
         {error && <Typography color="error" sx={{ mb: 2 }}>{error}</Typography>}
         <Stack spacing={2}>
@@ -45,6 +42,5 @@ export default function RRPage() {
           )}
         </Stack>
       </Container>
-    </div>
   );
 }

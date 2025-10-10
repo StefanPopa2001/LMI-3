@@ -3,15 +3,11 @@ import React from 'react';
 import { Box, Typography, Container } from '@mui/material';
 import { AttachMoney } from '@mui/icons-material';
 
-import ThemeRegistry from '../theme/ThemeRegistry';
-import NavBar from '../components/layout/NavBar';
 import BackButton from '../components/ui/BackButton';
 
 export default function LogipayView() {
   return (
-    <ThemeRegistry>
-      <NavBar />
-      <Container maxWidth="lg" sx={{ mt: 10 }}>
+    <Container maxWidth="lg" sx={{ mt: 10 }}>
         <BackButton />
 
         <Box sx={{ textAlign: 'center', mt: 8 }}>
@@ -27,6 +23,5 @@ export default function LogipayView() {
           </Typography>
         </Box>
       </Container>
-    </ThemeRegistry>
   );
 }
